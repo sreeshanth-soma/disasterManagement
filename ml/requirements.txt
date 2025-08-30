@@ -1,0 +1,9 @@
+numpy
+torch
+torchvision
+rasterio
+geopandas
+shapely
+scikit-learn
+osmnx
+networkx

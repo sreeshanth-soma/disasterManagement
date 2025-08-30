@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .btn-danger {
+    @apply bg-disaster-600 hover:bg-disaster-700 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .btn-warning {
+    @apply bg-yellow-500 hover:bg-yellow-600 text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+  
+  .card {
+    @apply bg-white rounded-lg shadow-md p-6 border border-gray-200;
+  }
+  
+  .alert {
+    @apply rounded-lg p-4 border-l-4;
+  }
+  
+  .alert-danger {
+    @apply bg-disaster-50 border-disaster-500 text-disaster-700;
+  }
+  
+  .alert-warning {
+    @apply bg-yellow-50 border-yellow-500 text-yellow-700;
+  }
+  
+  .alert-info {
+    @apply bg-blue-50 border-blue-500 text-blue-700;
+  }
+}
+
+/* Leaflet CSS overrides */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
+.leaflet-popup-content-wrapper {
+  @apply rounded-lg shadow-lg;
+}
+
+.leaflet-popup-content {
+  @apply p-2;
+}
