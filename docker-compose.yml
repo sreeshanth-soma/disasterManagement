@@ -1,0 +1,66 @@
+services:
+  db:
+    image: postgis/postgis
+    platform: linux/amd64
+    container_name: drch_postgis_db
+    environment:
+      POSTGRES_DB: drch_db
+      POSTGRES_USER: drch_user
+      POSTGRES_PASSWORD: drch_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:latest
+    platform: linux/amd64
+    container_name: drch_redis
+    ports:
+      - "6379:6379"
+
+  web:
+    build:
+      context: /Users/somasreeshanth/desktop/disasterManagement/drch/backend
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: drch_django_web
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ../drch/backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      POSTGRES_DB: drch_db
+      POSTGRES_USER: drch_user
+      POSTGRES_PASSWORD: drch_password
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+
+  celery_worker:
+    build:
+      context: /Users/somasreeshanth/desktop/disasterManagement/drch/backend
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: drch_celery_worker
+    command: celery -A drch_backend worker -l info
+    volumes:
+      - ../drch/backend:/app
+    depends_on:
+      - db
+      - redis
+      - web
+    environment:
+      POSTGRES_DB: drch_db
+      POSTGRES_USER: drch_user
+      POSTGRES_PASSWORD: drch_password
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+
+volumes:
+  db_data:

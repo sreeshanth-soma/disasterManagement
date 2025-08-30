@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:15-3.4
+    platform: linux/amd64   # Force amd64 emulation since no native ARM build
+    container_name: drch_postgis_db
+    environment:
+      POSTGRES_DB: drch_db
+      POSTGRES_USER: drch_user
+      POSTGRES_PASSWORD: drch_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  redis:
+    image: arm64v8/redis:alpine   # ARM-optimized build for Apple Silicon
+    platform: linux/arm64
+    container_name: drch_redis
+    ports:
+      - "6379:6379"
+
+  web:
+    build:
+      context: /Users/somasreeshanth/desktop/disasterManagement/drch/backend
+      dockerfile: Dockerfile
+    container_name: drch_django_web
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ../backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      POSTGRES_DB: drch_db
+      POSTGRES_USER: drch_user
+      POSTGRES_PASSWORD: drch_password
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+
+  celery_worker:
+    build:
+      context: /Users/somasreeshanth/desktop/disasterManagement/drch/backend
+      dockerfile: Dockerfile
+    container_name: drch_celery_worker
+    command: celery -A drch_backend worker -l info
+    volumes:
+      - ../backend:/app
+    depends_on:
+      - db
+      - redis
+      - web
+    environment:
+      POSTGRES_DB: drch_db
+      POSTGRES_USER: drch_user
+      POSTGRES_PASSWORD: drch_password
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+
+volumes:
+  db_data:
