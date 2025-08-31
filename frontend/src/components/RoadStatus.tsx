@@ -1,21 +1,44 @@
 import { useState, useEffect } from 'react';
+import { GoogleMap, useJsApiLoader, Polyline } from '@react-google-maps/api';
 import { Navigation, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+
 import { roadSegmentApi } from '../services/api';
 import type { GeoJSONFeature, RoadSegmentProperties } from '../types';
+
+const containerStyle = {
+  width: '100%',
+  height: '400px',
+};
+
+const center = {
+  lat: 40.7128, // New York City as default
+  lng: -74.0060, // New York City as default
+};
 
 const RoadStatus: React.FC = () => {
   const [roadFeatures, setRoadFeatures] = useState<GeoJSONFeature<RoadSegmentProperties>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Retrieve API key from environment variables
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script-roads',
+    googleMapsApiKey: apiKey || '',
+  });
+
   useEffect(() => {
     const fetchRoadSegments = async () => {
       try {
         const response = await roadSegmentApi.getAll();
+        if (!response || !response.data || !Array.isArray(response.data.features)) {
+          throw new Error('Unexpected API response format for road segments');
+        }
         setRoadFeatures(response.data.features);
         setError(null);
       } catch (err) {
-        setError('Failed to load road segments');
+        setError('Failed to load road segments: ' + err.message);
         console.error('Road segments fetch error:', err);
       } finally {
         setLoading(false);
@@ -51,13 +74,26 @@ const RoadStatus: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const getPolylineColor = (status: string) => {
+    switch (status) {
+      case 'normal':
+        return '#22c55e'; // Green
+      case 'flooded':
+        return '#dc2626'; // Red
+      case 'blocked':
+        return '#f59e0b'; // Amber
+      default:
+        return '#9ca3af'; // Gray
+    }
+  };
+
+  if (loadError) return <div>Error loading Google Maps</div>;
+  if (loading || !isLoaded) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <p className="ml-4 text-lg text-gray-700">Loading Map...</p>
+    </div>
+  );
 
   const normalRoads = roadFeatures.filter(feature => feature.properties.status === 'normal').length;
   const floodedRoads = roadFeatures.filter(feature => feature.properties.status === 'flooded').length;
@@ -120,56 +156,100 @@ const RoadStatus: React.FC = () => {
         </div>
       </div>
 
-      {/* Road Segments List */}
-      <div className="card">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Road Segments</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  OSM ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Checked
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {roadFeatures.map((feature) => (
-                <tr key={feature.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {feature.properties.osm_id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center space-x-2">
-                      {getStatusIcon(feature.properties.status)}
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(feature.properties.status)}`}>
-                        {feature.properties.status.charAt(0).toUpperCase() + feature.properties.status.slice(1)}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(feature.properties.last_checked).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-3">
-                      Update
-                    </button>
-                    <button className="text-red-600 hover:text-red-900">
-                      View Details
-                    </button>
-                  </td>
+      {/* Map and Road List */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Map */}
+        <div className="lg:col-span-2 card p-0 overflow-hidden">
+          {
+            isLoaded ? (
+              <GoogleMap
+                mapContainerStyle={containerStyle}
+                center={center}
+                zoom={10}
+                options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
+              >
+                {/* Render Road Segments as Polylines */}
+                {roadFeatures.map((feature) => {
+                  if (feature.geometry && feature.geometry.type === 'LineString' && Array.isArray(feature.geometry.coordinates)) {
+                    const lineCoordinates = feature.geometry.coordinates as [number, number][];
+                    const path = lineCoordinates.map(coord => ({
+                      lat: coord[1],
+                      lng: coord[0],
+                    }));
+
+                    return (
+                      <Polyline
+                        key={feature.id}
+                        path={path}
+                        options={{
+                          strokeColor: getPolylineColor(feature.properties.status),
+                          strokeOpacity: 0.8,
+                          strokeWeight: 4,
+                        }}
+                        onClick={() => console.log('Road Segment Click', feature.properties.osm_id)}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+              </GoogleMap>
+            ) : (
+              <div>Loading Map...</div>
+            )
+          }
+        </div>
+
+        {/* Road List */}
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Road Segments</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    OSM ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Checked
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {roadFeatures.map((feature) => (
+                  <tr key={feature.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {feature.properties.osm_id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        {getStatusIcon(feature.properties.status)}
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(feature.properties.status)}`}>
+                          {feature.properties.status.charAt(0).toUpperCase() + feature.properties.status.slice(1)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(feature.properties.last_checked).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button className="text-blue-600 hover:text-blue-900 mr-3">
+                        Update
+                      </button>
+                      <button className="text-red-600 hover:text-red-900">
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

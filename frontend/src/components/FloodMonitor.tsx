@@ -1,27 +1,33 @@
-import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Polygon, Popup } from 'react-leaflet';
+import { useState, useEffect, useRef } from 'react';
+import { GoogleMap, useJsApiLoader, Polygon, Marker } from '@react-google-maps/api';
 import { AlertTriangle, Plus, Filter, Download } from 'lucide-react';
-import 'leaflet/dist/leaflet.css';
+
 import { floodEventApi } from '../services/api';
 import type { GeoJSONFeature, FloodEventProperties } from '../types';
 
-// Fix for default markers in react-leaflet
-import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+const containerStyle = {
+  width: '100%',
+  height: '600px',
+};
 
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
+const center = {
+  lat: 40.7128, // New York City as default
+  lng: -74.0060, // New York City as default
+};
 
 const FloodMonitor: React.FC = () => {
   const [floodFeatures, setFloodFeatures] = useState<GeoJSONFeature<FloodEventProperties>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<GeoJSONFeature<FloodEventProperties> | null>(null);
+
+  // Retrieve API key from environment variables
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: apiKey || '', // Ensure API key is provided
+  });
 
   useEffect(() => {
     const fetchFloodEvents = async () => {
@@ -33,7 +39,7 @@ const FloodMonitor: React.FC = () => {
         setFloodFeatures(response.data.features);
         setError(null);
       } catch (err) {
-        setError('Failed to load flood events');
+        setError('Failed to load flood events: ' + err.message);
         console.error('Flood events fetch error:', err);
       } finally {
         setLoading(false);
@@ -53,22 +59,13 @@ const FloodMonitor: React.FC = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="alert alert-danger">
-        <AlertTriangle className="w-5 h-5" />
-        <span>{error}</span>
-      </div>
-    );
-  }
+  if (loadError) return <div>Error loading Google Maps</div>;
+  if (loading || !isLoaded) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <p className="ml-4 text-lg text-gray-700">Loading Map...</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -146,51 +143,56 @@ const FloodMonitor: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Map */}
         <div className="lg:col-span-2 card p-0 overflow-hidden">
-          <div className="h-96">
-            <MapContainer
-              center={[40.7128, -74.0060]} // New York City as default
-              zoom={10}
-              style={{ height: '100%', width: '100%' }}
-            >
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
-              {floodFeatures.map((feature) => {
-                // Ensure geometry is a Polygon and extract coordinates correctly
-                if (feature.geometry && feature.geometry.type === 'Polygon' && Array.isArray(feature.geometry.coordinates[0])) {
-                  const polygonCoordinates = feature.geometry.coordinates[0] as [number, number][];
-                  const positions = polygonCoordinates.map(coord => [coord[1], coord[0]] as [number, number]);
-                  
-                  return (
-                    <Polygon
-                      key={feature.id}
-                      positions={positions}
-                      pathOptions={{
-                        color: getConfidenceColor(feature.properties.confidence),
-                        fillColor: getConfidenceColor(feature.properties.confidence),
-                        fillOpacity: 0.3,
-                        weight: 2,
-                      }}
-                      eventHandlers={{
-                        click: () => setSelectedFeature(feature),
-                      }}
-                    >
-                      <Popup>
-                        <div className="p-2">
-                          <h3 className="font-semibold text-gray-900">{feature.properties.name}</h3>
-                          <p className="text-sm text-gray-600">Confidence: {(feature.properties.confidence * 100).toFixed(1)}%</p>
-                          <p className="text-sm text-gray-600">Source: {feature.properties.source}</p>
-                          <p className="text-sm text-gray-600">Detected: {formatDate(feature.properties.detected_at)}</p>
-                        </div>
-                      </Popup>
-                    </Polygon>
-                  );
-                }
-                return null;
-              })}
-            </MapContainer>
-          </div>
+          {
+            isLoaded ? (
+              <GoogleMap
+                mapContainerStyle={containerStyle}
+                center={center}
+                zoom={10}
+                options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
+              >
+                {/* Render Flood Event Polygons */}
+                {floodFeatures.map((feature) => {
+                  if (feature.geometry && feature.geometry.type === 'Polygon' && Array.isArray(feature.geometry.coordinates[0])) {
+                    const polygonCoordinates = feature.geometry.coordinates[0] as [number, number][];
+                    const paths = polygonCoordinates.map(coord => ({
+                      lat: coord[1],
+                      lng: coord[0],
+                    }));
+
+                    return (
+                      <Polygon
+                        key={feature.id}
+                        paths={paths}
+                        options={{
+                          strokeColor: getConfidenceColor(feature.properties.confidence),
+                          strokeOpacity: 0.8,
+                          strokeWeight: 2,
+                          fillColor: getConfidenceColor(feature.properties.confidence),
+                          fillOpacity: 0.35,
+                        }}
+                        onClick={() => setSelectedFeature(feature)}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+
+                {/* Optionally, display a marker for the selected feature's centroid or a specific point */}
+                {selectedFeature && selectedFeature.geometry && selectedFeature.geometry.type === 'Polygon' && (
+                  <Marker
+                    position={{
+                      lat: selectedFeature.geometry.coordinates[0][0][1],
+                      lng: selectedFeature.geometry.coordinates[0][0][0],
+                    }}
+                    onClick={() => console.log('Selected Feature Marker Click')}
+                  />
+                )}
+              </GoogleMap>
+            ) : (
+              <div>Loading Map...</div>
+            )
+          }
         </div>
 
         {/* Event List */}
