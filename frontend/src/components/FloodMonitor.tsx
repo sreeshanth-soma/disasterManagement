@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
-import { GoogleMap, useJsApiLoader, Polygon, Marker } from '@react-google-maps/api';
+import { useState, useEffect } from 'react';
+import { GoogleMap, useJsApiLoader, Polygon, Marker, InfoWindow } from '@react-google-maps/api';
 import { AlertTriangle, Plus, Filter, Download } from 'lucide-react';
 
-import { floodEventApi } from '../services/api';
+import { floodEventApi, extractGeoJSONData } from '../services/api';
+import { parsePolygonGeometry } from '../utils/geometryParser';
+import ModernCard from './ModernCard';
 import type { GeoJSONFeature, FloodEventProperties } from '../types';
 
 const containerStyle = {
@@ -11,8 +13,8 @@ const containerStyle = {
 };
 
 const center = {
-  lat: 40.7128, // New York City as default
-  lng: -74.0060, // New York City as default
+  lat: 40.714, // New York City - closer to actual data
+  lng: -74.003, // New York City - closer to actual data
 };
 
 const FloodMonitor: React.FC = () => {
@@ -27,19 +29,21 @@ const FloodMonitor: React.FC = () => {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: apiKey || '', // Ensure API key is provided
+    // Note: Using classic Marker API (deprecated Feb 2024, but supported for 12+ months)
+    // TODO: Migrate to AdvancedMarkerElement when @react-google-maps/api supports it
   });
 
   useEffect(() => {
     const fetchFloodEvents = async () => {
       try {
         const response = await floodEventApi.getAll();
-        if (!response || !response.data || !Array.isArray(response.data.features)) {
-          throw new Error('Unexpected API response format for flood events');
-        }
-        setFloodFeatures(response.data.features);
+        // Extract GeoJSON data from API response
+        const geoJSONData = extractGeoJSONData<FloodEventProperties>(response);
+        const features = geoJSONData?.features || [];
+        setFloodFeatures(features);
         setError(null);
-      } catch (err) {
-        setError('Failed to load flood events: ' + err.message);
+      } catch (err: any) {
+        setError('Failed to load flood events: ' + (err?.message || 'Unknown error'));
         console.error('Flood events fetch error:', err);
       } finally {
         setLoading(false);
@@ -59,7 +63,26 @@ const FloodMonitor: React.FC = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  if (loadError) return <div>Error loading Google Maps</div>;
+  if (loadError) return (
+    <div className="alert alert-danger">
+      <AlertTriangle className="w-5 h-5" />
+      <div>
+        <p className="font-medium">Error loading Google Maps</p>
+        <p className="text-sm">Please check your Google Maps API key configuration</p>
+      </div>
+    </div>
+  );
+
+  if (!apiKey) return (
+    <div className="alert alert-warning">
+      <AlertTriangle className="w-5 h-5" />
+      <div>
+        <p className="font-medium">Google Maps API key required</p>
+        <p className="text-sm">Create a .env file with VITE_GOOGLE_MAPS_API_KEY to enable maps</p>
+      </div>
+    </div>
+  );
+
   if (loading || !isLoaded) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -153,17 +176,14 @@ const FloodMonitor: React.FC = () => {
               >
                 {/* Render Flood Event Polygons */}
                 {floodFeatures.map((feature) => {
-                  if (feature.geometry && feature.geometry.type === 'Polygon' && Array.isArray(feature.geometry.coordinates[0])) {
-                    const polygonCoordinates = feature.geometry.coordinates[0] as [number, number][];
-                    const paths = polygonCoordinates.map(coord => ({
-                      lat: coord[1],
-                      lng: coord[0],
-                    }));
-
+                  // Parse the SRID geometry string
+                  const polygonData = parsePolygonGeometry(feature.geometry as unknown as string);
+                  
+                  if (polygonData) {
                     return (
                       <Polygon
                         key={feature.id}
-                        paths={paths}
+                        paths={polygonData.paths}
                         options={{
                           strokeColor: getConfidenceColor(feature.properties.confidence),
                           strokeOpacity: 0.8,
@@ -171,23 +191,47 @@ const FloodMonitor: React.FC = () => {
                           fillColor: getConfidenceColor(feature.properties.confidence),
                           fillOpacity: 0.35,
                         }}
-                        onClick={() => setSelectedFeature(feature)}
+                        onClick={() => {
+                          setSelectedFeature(feature);
+                          console.log('Flood area clicked:', feature.properties.name);
+                        }}
                       />
                     );
                   }
                   return null;
                 })}
 
-                {/* Optionally, display a marker for the selected feature's centroid or a specific point */}
-                {selectedFeature && selectedFeature.geometry && selectedFeature.geometry.type === 'Polygon' && (
-                  <Marker
-                    position={{
-                      lat: selectedFeature.geometry.coordinates[0][0][1],
-                      lng: selectedFeature.geometry.coordinates[0][0][0],
-                    }}
-                    onClick={() => console.log('Selected Feature Marker Click')}
-                  />
-                )}
+                {/* Marker and InfoWindow for selected flood area */}
+                {selectedFeature && (() => {
+                  const polygonData = parsePolygonGeometry(selectedFeature.geometry as unknown as string);
+                  if (polygonData && polygonData.paths.length > 0) {
+                    // Use the first coordinate as the marker position (centroid would be better)
+                    const markerPosition = polygonData.paths[0];
+                    return (
+                      <>
+                        <Marker
+                          position={markerPosition}
+                          onClick={() => console.log('Selected Feature Marker Click')}
+                        />
+                        <InfoWindow
+                          position={markerPosition}
+                          onCloseClick={() => setSelectedFeature(null)}
+                        >
+                          <div className="p-2 max-w-xs">
+                            <h3 className="font-semibold text-gray-900 mb-2">{selectedFeature.properties.name}</h3>
+                            <div className="space-y-1 text-sm">
+                              <div><strong>Confidence:</strong> {(selectedFeature.properties.confidence * 100).toFixed(1)}%</div>
+                              <div><strong>Source:</strong> {selectedFeature.properties.source}</div>
+                              <div><strong>Detected:</strong> {new Date(selectedFeature.properties.detected_at).toLocaleString()}</div>
+                              <div><strong>Event ID:</strong> {selectedFeature.id}</div>
+                            </div>
+                          </div>
+                        </InfoWindow>
+                      </>
+                    );
+                  }
+                  return null;
+                })()}
               </GoogleMap>
             ) : (
               <div>Loading Map...</div>
@@ -198,29 +242,27 @@ const FloodMonitor: React.FC = () => {
         {/* Event List */}
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Events</h3>
-          <div className="space-y-3 max-h-80 overflow-y-auto">
+          <div className="space-y-4 max-h-80 overflow-y-auto">
             {floodFeatures.slice(0, 10).map((feature) => (
-              <div
+              <ModernCard
                 key={feature.id}
-                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                  selectedFeature?.id === feature.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
+                title={feature.properties.name}
+                subtitle={`Event #${feature.id}`}
+                confidence={feature.properties.confidence}
+                icon={AlertTriangle}
+                timestamp={feature.properties.detected_at}
+                details={[
+                  { label: 'Source', value: feature.properties.source },
+                  { label: 'Confidence', value: `${(feature.properties.confidence * 100).toFixed(1)}%` },
+                ]}
+                actions={[
+                  { label: 'View Details', onClick: () => setSelectedFeature(feature), variant: 'primary' },
+                  { label: 'View on Map', onClick: () => setSelectedFeature(feature), variant: 'secondary' },
+                ]}
                 onClick={() => setSelectedFeature(feature)}
-              >
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-gray-900">{feature.properties.name}</h4>
-                  <span
-                    className="px-2 py-1 text-xs font-medium rounded-full text-white"
-                    style={{ backgroundColor: getConfidenceColor(feature.properties.confidence) }}
-                  >
-                    {(feature.properties.confidence * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mt-1">Source: {feature.properties.source}</p>
-                <p className="text-sm text-gray-500">{formatDate(feature.properties.detected_at)}</p>
-              </div>
+                isSelected={selectedFeature?.id === feature.id}
+                className="transform scale-95"
+              />
             ))}
           </div>
         </div>

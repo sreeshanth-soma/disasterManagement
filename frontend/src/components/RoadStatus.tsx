@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { GoogleMap, useJsApiLoader, Polyline } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Polyline, InfoWindow, Marker } from '@react-google-maps/api';
 import { Navigation, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
-import { roadSegmentApi } from '../services/api';
+import { roadSegmentApi, extractGeoJSONData } from '../services/api';
+import { parseLineStringGeometry } from '../utils/geometryParser';
+import ModernCard from './ModernCard';
 import type { GeoJSONFeature, RoadSegmentProperties } from '../types';
 
 const containerStyle = {
@@ -11,14 +13,15 @@ const containerStyle = {
 };
 
 const center = {
-  lat: 40.7128, // New York City as default
-  lng: -74.0060, // New York City as default
+  lat: 40.714, // New York City - closer to actual data
+  lng: -74.003, // New York City - closer to actual data
 };
 
 const RoadStatus: React.FC = () => {
   const [roadFeatures, setRoadFeatures] = useState<GeoJSONFeature<RoadSegmentProperties>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedRoad, setSelectedRoad] = useState<GeoJSONFeature<RoadSegmentProperties> | null>(null);
 
   // Retrieve API key from environment variables
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -26,19 +29,21 @@ const RoadStatus: React.FC = () => {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script-roads',
     googleMapsApiKey: apiKey || '',
+    // Note: Using classic Marker API (deprecated Feb 2024, but supported for 12+ months)
+    // TODO: Migrate to AdvancedMarkerElement when @react-google-maps/api supports it
   });
 
   useEffect(() => {
     const fetchRoadSegments = async () => {
       try {
         const response = await roadSegmentApi.getAll();
-        if (!response || !response.data || !Array.isArray(response.data.features)) {
-          throw new Error('Unexpected API response format for road segments');
-        }
-        setRoadFeatures(response.data.features);
+        // Extract GeoJSON data from API response
+        const geoJSONData = extractGeoJSONData<RoadSegmentProperties>(response);
+        const features = geoJSONData?.features || [];
+        setRoadFeatures(features);
         setError(null);
-      } catch (err) {
-        setError('Failed to load road segments: ' + err.message);
+      } catch (err: any) {
+        setError('Failed to load road segments: ' + (err?.message || 'Unknown error'));
         console.error('Road segments fetch error:', err);
       } finally {
         setLoading(false);
@@ -170,28 +175,62 @@ const RoadStatus: React.FC = () => {
               >
                 {/* Render Road Segments as Polylines */}
                 {roadFeatures.map((feature) => {
-                  if (feature.geometry && feature.geometry.type === 'LineString' && Array.isArray(feature.geometry.coordinates)) {
-                    const lineCoordinates = feature.geometry.coordinates as [number, number][];
-                    const path = lineCoordinates.map(coord => ({
-                      lat: coord[1],
-                      lng: coord[0],
-                    }));
-
+                  // Parse the SRID geometry string
+                  const lineData = parseLineStringGeometry(feature.geometry as unknown as string);
+                  
+                  if (lineData) {
                     return (
                       <Polyline
                         key={feature.id}
-                        path={path}
+                        path={lineData.path}
                         options={{
                           strokeColor: getPolylineColor(feature.properties.status),
                           strokeOpacity: 0.8,
                           strokeWeight: 4,
                         }}
-                        onClick={() => console.log('Road Segment Click', feature.properties.osm_id)}
+                        onClick={() => {
+                          setSelectedRoad(feature);
+                          console.log('Road Segment Click', feature.properties.osm_id);
+                        }}
                       />
                     );
                   }
                   return null;
                 })}
+
+                {/* InfoWindow for selected road */}
+                {selectedRoad && (() => {
+                  const lineData = parseLineStringGeometry(selectedRoad.geometry as unknown as string);
+                  if (lineData && lineData.path.length > 0) {
+                    // Use the middle point of the line as marker position
+                    const midIndex = Math.floor(lineData.path.length / 2);
+                    const markerPosition = lineData.path[midIndex];
+                    return (
+                      <>
+                        <Marker
+                          position={markerPosition}
+                          onClick={() => console.log('Selected Road Marker Click')}
+                        />
+                        <InfoWindow
+                          position={markerPosition}
+                          onCloseClick={() => setSelectedRoad(null)}
+                        >
+                          <div className="p-2 max-w-xs">
+                            <h3 className="font-semibold text-gray-900 mb-2">Road Segment #{selectedRoad.id}</h3>
+                            <div className="space-y-1 text-sm">
+                              <div><strong>Status:</strong> <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedRoad.properties.status)}`}>
+                                {selectedRoad.properties.status.charAt(0).toUpperCase() + selectedRoad.properties.status.slice(1)}
+                              </span></div>
+                              <div><strong>OSM ID:</strong> {selectedRoad.properties.osm_id}</div>
+                              <div><strong>Last Checked:</strong> {new Date(selectedRoad.properties.last_checked).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        </InfoWindow>
+                      </>
+                    );
+                  }
+                  return null;
+                })()}
               </GoogleMap>
             ) : (
               <div>Loading Map...</div>
@@ -202,53 +241,30 @@ const RoadStatus: React.FC = () => {
         {/* Road List */}
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Road Segments</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    OSM ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Checked
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {roadFeatures.map((feature) => (
-                  <tr key={feature.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {feature.properties.osm_id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        {getStatusIcon(feature.properties.status)}
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(feature.properties.status)}`}>
-                          {feature.properties.status.charAt(0).toUpperCase() + feature.properties.status.slice(1)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(feature.properties.last_checked).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 mr-3">
-                        Update
-                      </button>
-                      <button className="text-red-600 hover:text-red-900">
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {roadFeatures.map((feature) => (
+              <ModernCard
+                key={feature.id}
+                title={`Road Segment #${feature.id}`}
+                subtitle={`OSM ID: ${feature.properties.osm_id}`}
+                status={feature.properties.status}
+                icon={Navigation}
+                statusIcon={getStatusIcon(feature.properties.status)}
+                timestamp={feature.properties.last_checked}
+                details={[
+                  { label: 'OSM ID', value: feature.properties.osm_id },
+                  { label: 'Last Checked', value: new Date(feature.properties.last_checked).toLocaleString() },
+                ]}
+                actions={[
+                  { label: 'Update Status', onClick: () => console.log('Update status for', feature.id), variant: 'primary' },
+                  { label: 'View Details', onClick: () => setSelectedRoad(feature), variant: 'secondary' },
+                  { label: 'View on Map', onClick: () => setSelectedRoad(feature), variant: 'secondary' },
+                ]}
+                onClick={() => setSelectedRoad(feature)}
+                isSelected={selectedRoad?.id === feature.id}
+                className="transform scale-95"
+              />
+            ))}
           </div>
         </div>
       </div>

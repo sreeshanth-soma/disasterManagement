@@ -1,0 +1,172 @@
+@layer components {
+  /* Global resets for Navbar elements to ensure consistent styling */
+  .navbar-container * {
+    box-sizing: border-box;
+  }
+
+  .navbar-container button {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+}
+
+.navbar,
+.navbar-burger,
+.menu,
+.background {
+  position: fixed !important;
+}
+
+.background {
+  z-index: 1 !important;
+  top: -10% !important;
+  left: -10% !important;
+  width: 120% !important;
+  height: 120% !important;
+  background-image: url("/assets/bg.jpeg") !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  transition: 0.5s !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+body.open .background {
+  filter: blur(20px) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.navbar {
+  z-index: 10 !important;
+  top: 0 !important;
+  left: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100% !important;
+  height: 72px !important; /* Standard navbar height */
+  padding: 0 20px !important;
+  background: #2d3748 !important; /* Dark background */
+  color: white !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
+  transition: 0.3s !important;
+}
+
+.navbar-logo-container {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.navbar-logo {
+  height: 40px !important;
+  width: auto !important;
+  object-fit: contain !important;
+}
+
+.navbar-title {
+  font-size: 1.5rem !important; /* Equivalent to text-2xl */
+  font-weight: 700 !important; /* Equivalent to font-bold */
+  color: white !important;
+}
+
+.navbar-search {
+  width: 300px !important;
+  padding: 8px 12px !important;
+  border: 1px solid #4a5568 !important; /* Darker border */
+  border-radius: 8px !important;
+  background: #202a36 !important; /* Even darker background for search */
+  color: white !important;
+  font-size: 1rem !important;
+  transition: 0.3s !important;
+}
+
+.navbar-search::placeholder {
+  color: #a0aec0 !important; /* Lighter placeholder text */
+}
+
+.navbar-search:focus {
+  border-color: #4299e1 !important; /* Blue focus border */
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.5) !important;
+}
+
+.navbar-burger {
+  z-index: 30 !important;
+  right: 20px !important;
+  top: 15px !important;
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-around !important;
+  align-items: center !important;
+  border-radius: 50% !important;
+  transition: 0.3s !important;
+}
+
+.navbar-burger:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.navbar-burger span {
+  display: block !important;
+  width: 28px !important;
+  height: 3px !important;
+  background: white !important;
+  border-radius: 2px !important;
+  transition: 0.3s !important;
+}
+
+body.open .navbar-burger span:nth-child(1) {
+  transform: translateY(9px) rotate(45deg) !important;
+}
+
+body.open .navbar-burger span:nth-child(2) {
+  opacity: 0 !important;
+}
+
+body.open .navbar-burger span:nth-child(3) {
+  transform: translateY(-9px) rotate(-45deg) !important;
+}
+
+.menu {
+  z-index: 20 !important;
+  top: 0 !important;
+  right: -300px !important; /* Start off-screen */
+  width: 280px !important;
+  height: 100vh !important;
+  background: #2d3748 !important; /* Same as navbar */
+  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.2) !important;
+  transition: 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding-top: 100px !important; /* Space for navbar */
+}
+
+body.open .menu {
+  right: 0 !important;
+}
+
+.menu > a {
+  color: white !important;
+  text-decoration: none !important;
+  padding: 15px 25px !important;
+  font-size: 1.1rem !important;
+  transition: 0.3s !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.menu > a:last-child {
+  border-bottom: none !important;
+}
+
+.menu > a:hover,
+.menu > a.active {
+  background: #4299e1 !important; /* Blue highlight */
+  padding-left: 30px !important;
+}

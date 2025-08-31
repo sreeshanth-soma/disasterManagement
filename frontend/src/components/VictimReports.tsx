@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
-import { Users, AlertTriangle, Clock, Shield, Phone, MapPin } from 'lucide-react';
-import { victimReportApi } from '../services/api';
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
+import { Users, AlertTriangle, Clock, Shield } from 'lucide-react';
+import { victimReportApi, extractGeoJSONData } from '../services/api';
+import { parsePointGeometry } from '../utils/geometryParser';
+import ModernCard from './ModernCard';
 import type { GeoJSONFeature, VictimReportProperties } from '../types';
 
 const containerStyle = {
@@ -10,14 +12,15 @@ const containerStyle = {
 };
 
 const center = {
-  lat: 40.7128, // New York City as default
-  lng: -74.0060, // New York City as default
+  lat: 40.714, // New York City - closer to actual data
+  lng: -74.003, // New York City - closer to actual data
 };
 
 const VictimReports: React.FC = () => {
   const [victimFeatures, setVictimFeatures] = useState<GeoJSONFeature<VictimReportProperties>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedMarker, setSelectedMarker] = useState<GeoJSONFeature<VictimReportProperties> | null>(null);
 
   // Retrieve API key from environment variables
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -25,20 +28,22 @@ const VictimReports: React.FC = () => {
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script-victims',
     googleMapsApiKey: apiKey || '',
+    // Note: Using classic Marker API (deprecated Feb 2024, but supported for 12+ months)
+    // TODO: Migrate to AdvancedMarkerElement when @react-google-maps/api supports it
   });
 
   useEffect(() => {
     const fetchVictimReports = async () => {
       try {
         const response = await victimReportApi.getAll();
-        if (!response || !response.data || !Array.isArray(response.data.features)) {
-          throw new Error('Unexpected API response format for victim reports');
-        }
-        setVictimFeatures(response.data.features);
-        console.log("Victim Reports Features:", response.data.features); // <-- Added log
+        // Extract GeoJSON data from API response
+        const geoJSONData = extractGeoJSONData<VictimReportProperties>(response);
+        const features = geoJSONData?.features || [];
+        setVictimFeatures(features);
+        console.log("Victim Reports Features:", features);
         setError(null);
-      } catch (err) {
-        setError('Failed to load victim reports: ' + err.message);
+      } catch (err: any) {
+        setError('Failed to load victim reports: ' + (err?.message || 'Unknown error'));
         console.error('Victim reports fetch error:', err);
       } finally {
         setLoading(false);
@@ -61,18 +66,7 @@ const VictimReports: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'new':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'triaged':
-        return 'bg-orange-100 text-orange-800';
-      case 'rescued':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+
 
   const getPriorityColor = (priority: number) => {
     if (priority >= 4) return 'bg-red-100 text-red-800';
@@ -86,6 +80,48 @@ const VictimReports: React.FC = () => {
     if (priority >= 3) return 'High';
     if (priority >= 2) return 'Medium';
     return 'Low';
+  };
+
+  // Action handlers
+  const handleViewDetails = (feature: GeoJSONFeature<VictimReportProperties>) => {
+    setSelectedMarker(feature);
+    // You can add more detailed view logic here
+    console.log('Viewing details for report:', feature.id);
+  };
+
+  const handleStartTriage = async (feature: GeoJSONFeature<VictimReportProperties>) => {
+    try {
+      console.log('Starting triage for report:', feature.id);
+      // Here you would typically call an API to update the status
+      // await victimReportApi.update(feature.id, { ...feature.properties, status: 'triaged' });
+      // Then refresh the data
+      alert(`Started triage for Report #${feature.id}`);
+    } catch (error) {
+      console.error('Error starting triage:', error);
+      alert('Failed to start triage');
+    }
+  };
+
+  const handleMarkRescued = async (feature: GeoJSONFeature<VictimReportProperties>) => {
+    try {
+      console.log('Marking as rescued for report:', feature.id);
+      // Here you would typically call an API to update the status
+      // await victimReportApi.update(feature.id, { ...feature.properties, status: 'rescued' });
+      // Then refresh the data
+      alert(`Marked Report #${feature.id} as rescued!`);
+    } catch (error) {
+      console.error('Error marking as rescued:', error);
+      alert('Failed to mark as rescued');
+    }
+  };
+
+  const handleViewOnMap = (feature: GeoJSONFeature<VictimReportProperties>) => {
+    const position = parsePointGeometry(feature.geometry as unknown as string);
+    if (position) {
+      setSelectedMarker(feature);
+      // You could also center the map on this location
+      console.log('Viewing on map:', position);
+    }
   };
 
   if (loadError) return <div>Error loading Google Maps</div>;
@@ -171,22 +207,60 @@ const VictimReports: React.FC = () => {
               >
                 {/* Render Victim Report Markers */}
                 {victimFeatures.map((feature) => {
-                  if (feature.geometry && feature.geometry.type === 'Point' && Array.isArray(feature.geometry.coordinates) && feature.geometry.coordinates.length >= 2) {
-                    const position = {
-                      lat: feature.geometry.coordinates[1],
-                      lng: feature.geometry.coordinates[0],
-                    };
-
+                  // Parse the SRID geometry string
+                  const position = parsePointGeometry(feature.geometry as unknown as string);
+                  
+                  if (position) {
                     return (
                       <Marker
                         key={feature.id}
                         position={position}
-                        onClick={() => console.log('Victim Report Marker Click', feature.id)}
+                        title={`Report #${feature.id} - ${feature.properties.status}`}
+                        onClick={() => setSelectedMarker(feature)}
                       />
                     );
+                  } else {
+                    console.warn(`Failed to parse geometry for feature ${feature.id}:`, feature.geometry);
                   }
                   return null;
                 })}
+
+                {/* InfoWindow for selected marker */}
+                {selectedMarker && (() => {
+                  const position = parsePointGeometry(selectedMarker.geometry as unknown as string);
+                  return position ? (
+                    <InfoWindow
+                      position={position}
+                      onCloseClick={() => setSelectedMarker(null)}
+                    >
+                      <div className="p-2 max-w-xs">
+                        <div className="flex items-center space-x-2 mb-2">
+                          {getStatusIcon(selectedMarker.properties.status)}
+                          <h3 className="font-semibold text-gray-900">Report #{selectedMarker.id}</h3>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(selectedMarker.properties.priority)}`}>
+                            {getPriorityLabel(selectedMarker.properties.priority)}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          <div><strong>Status:</strong> {selectedMarker.properties.status}</div>
+                          <div><strong>Phone:</strong> {selectedMarker.properties.phone}</div>
+                          <div><strong>Address:</strong> {selectedMarker.properties.address}</div>
+                          <div><strong>Reported:</strong> {new Date(selectedMarker.properties.reported_at).toLocaleString()}</div>
+                          {selectedMarker.properties.needs && Object.keys(selectedMarker.properties.needs).length > 0 && (
+                            <div>
+                              <strong>Needs:</strong>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {Object.entries(selectedMarker.properties.needs).map(([key, value]) => (
+                                  value && <span key={key} className="px-1 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">{key}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </InfoWindow>
+                  ) : null;
+                })()}
               </GoogleMap>
             ) : (
               <div>Loading Map...</div>
@@ -198,83 +272,47 @@ const VictimReports: React.FC = () => {
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Reports</h3>
           <div className="space-y-4">
-            {victimFeatures.map((feature) => (
-              <div key={feature.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center space-x-3">
-                    {getStatusIcon(feature.properties.status)}
-                    <h4 className="font-medium text-gray-900">Report #{feature.id}</h4>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(feature.properties.priority)}`}>
-                      {getPriorityLabel(feature.properties.priority)}
-                    </span>
-                  </div>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(feature.properties.status)}`}>
-                    {feature.properties.status.charAt(0).toUpperCase() + feature.properties.status.slice(1)}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Phone className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-600">Phone:</span>
-                      <span className="font-medium">{feature.properties.phone}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <MapPin className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-600">Location:</span>
-                      <span className="font-medium">
-                        {feature.geometry && Array.isArray(feature.geometry.coordinates) && feature.geometry.coordinates.length >= 2
-                          ? `${feature.geometry.coordinates[1].toFixed(4)}, ${feature.geometry.coordinates[0].toFixed(4)}`
-                          : 'N/A'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-gray-600">Reported:</span>
-                      <span className="ml-2 font-medium">{new Date(feature.properties.reported_at).toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Needs:</span>
-                      <div className="mt-1">
-                        {Object.keys(feature.properties.needs || {}).length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {Object.entries(feature.properties.needs || {}).map(([key, value]) => (
-                              <span key={key} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                                {key}: {String(value)}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">No specific needs reported</span>
-                        )}
-                      }
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-4 flex space-x-2">
-                  <button className="btn-primary text-sm">
-                    View Details
-                  </button>
-                  {feature.properties.status === 'new' && (
-                    <button className="btn-warning text-sm">
-                      Start Triage
-                    </button>
-                  )}
-                  {feature.properties.status === 'triaged' && (
-                    <button className="btn-danger text-sm">
-                      Mark Rescued
-                    </button>
-                  )}
-                  <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                    View on Map
-                  </button>
-                </div>
-              </div>
-            ))}
+            {victimFeatures.map((feature) => {
+              const position = parsePointGeometry(feature.geometry as unknown as string);
+              const needsTags = Object.entries(feature.properties.needs || {})
+                .filter(([_, value]) => value)
+                .map(([key, _]) => ({ label: key }));
+
+              return (
+                <ModernCard
+                  key={feature.id}
+                  title={`Report #${feature.id}`}
+                  subtitle={feature.properties.address}
+                  status={feature.properties.status}
+                  priority={getPriorityLabel(feature.properties.priority).toLowerCase() as any}
+                  icon={Users}
+                  statusIcon={getStatusIcon(feature.properties.status)}
+                  timestamp={feature.properties.reported_at}
+                  location={position ? `${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}` : 'N/A'}
+                  details={[
+                    { label: 'Phone', value: feature.properties.phone },
+                    { label: 'Priority', value: getPriorityLabel(feature.properties.priority) },
+                  ]}
+                  tags={needsTags}
+                  actions={[
+                    { label: 'View Details', onClick: () => handleViewDetails(feature), variant: 'primary' },
+                    ...(feature.properties.status === 'new' ? [{ 
+                      label: 'Start Triage', 
+                      onClick: () => handleStartTriage(feature), 
+                      variant: 'warning' as const 
+                    }] : []),
+                    ...(feature.properties.status === 'triaged' ? [{ 
+                      label: 'Mark Rescued', 
+                      onClick: () => handleMarkRescued(feature), 
+                      variant: 'danger' as const 
+                    }] : []),
+                    { label: 'View on Map', onClick: () => handleViewOnMap(feature), variant: 'secondary' },
+                  ]}
+                  onClick={() => handleViewDetails(feature)}
+                  isSelected={selectedMarker?.id === feature.id}
+                />
+              );
+            })}
           </div>
         </div>
       </div>

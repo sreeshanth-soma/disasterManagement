@@ -14,6 +14,17 @@ export interface GeoJSONFeatureCollection<T> {
   features: GeoJSONFeature<T>[];
 }
 
+// Django REST Framework paginated response
+export interface DjangoApiResponse<T> {
+  count: number;
+  next?: string;
+  previous?: string;
+  results: T;
+}
+
+// Combined response type that handles both formats
+export type ApiResponse<T> = T | DjangoApiResponse<T>;
+
 export interface FloodEventProperties {
   name: string;
   confidence: number;
@@ -29,6 +40,7 @@ export interface RoadSegmentProperties {
 
 export interface VictimReportProperties {
   phone: string;
+  address?: string;
   needs: Record<string, any>;
   priority: number;
   status: 'new' | 'triaged' | 'rescued';
