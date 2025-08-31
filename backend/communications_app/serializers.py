@@ -5,4 +5,4 @@ class VictimReportSerializer(GeoFeatureModelSerializer):
     class Meta:
         model = VictimReport
         geo_field = 'location'
-        fields = '__all__'
+        fields = ['id', 'phone', 'address', 'needs', 'priority', 'status', 'reported_at']
