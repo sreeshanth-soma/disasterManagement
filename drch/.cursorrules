@@ -1,0 +1,42 @@
+---
+description: "Rules for Disaster Response Coordination Hub project structure"
+globs: []
+alwaysApply: true
+---
+- **Project Layout:** Structure code into modular directories:
+  - `backend/`: Python backend services (FastAPI or Django).
+  - `frontend/`: React/TypeScript frontend with Google Maps integration.
+  - `ml/`: AI/ML components (SAR flood detection, routing algorithms).
+  - `database/`: PostGIS database configuration, migrations, seed data.
+  - `comms/`: Communication modules (Twilio IVR/SMS handlers).
+- **Backend (FastAPI/Django):** Place server code under `backend/`:
+  - If **FastAPI**: use `backend/main.py` as entrypoint, and define routers in `backend/routes/`.
+  - If **Django**: create a Django project in `backend/` with apps (e.g., `flood_app`, `routing_app`, `communications_app`).
+  - Follow Python naming conventions: snake_case for file and function names (e.g., `flood_detector.py`), CamelCase for classes.
+- **Frontend (React/Google Maps):** Place UI code under `frontend/`:
+  - Use React + Google Maps JavaScript API with TypeScript. Keep components in `frontend/src/components` and pages in `frontend/src/pages`.
+  - Name React components in PascalCase (e.g., `MapView.tsx`). Keep service calls in `frontend/src/services/api.ts`.
+  - Store API keys (Google Maps API key) in a `.env` file; exclude from version control.
+  - Use libraries like `@react-google-maps/api` to simplify integration.
+- **AI/ML Modules:** Place machine learning code under `ml/`:
+  - Organize by function: `ml/flood_detection/` (e.g., `train_model.py`, `predict.py`), and `ml/rescue_routing/`.
+  - Use Python scripts or notebooks for model development; version-model artifacts in `ml/models/`.
+  - Integrate model inference with backend endpoints or background tasks (e.g., via FastAPI or Celery).
+- **Geospatial Data (PostGIS):** Configure spatial database in `database/`:
+  - Enable PostGIS extension in the initial migration (e.g., `database/migrations/init_postgis.sql`).
+  - Store spatial tables (e.g., `flood_events`, `road_network`) with snake_case naming.
+  - Keep migration scripts in `database/migrations/` and seed data (e.g., OSM extracts, flood history) in `database/seed/`.
+- **IVR/SMS (Twilio):** Place communication logic under `comms/`:
+  - Write Twilio handlers (e.g., `comms/ivr_handler.py`, `comms/sms_handler.py`).
+  - Store credentials and configuration in `comms/config.py`, using environment variables for secrets.
+  - Prefix handler functions with `handle_` (e.g., `handle_incoming_call`) and document call/SMS workflows.
+- **Naming & Style:** Maintain consistent conventions:
+  - Python code: snake_case for modules and functions, PascalCase for classes.
+  - React code: PascalCase for components (`.tsx` files), kebab-case for CSS/SCSS files.
+  - Use descriptive names reflecting domain (e.g., `detect_flood.py`, `optimize_route.py`).
+- **Templates & Scaffolding:** Use Cursor AI templates for common tasks:
+  - `@backend-service-template.py` to scaffold a new FastAPI endpoint or service.
+  - `@frontend-component-template.tsx` for a new Google Maps-based React component.
+  - `@ml-model-template.py` for starting a new machine learning model script.
+  - `@db-migration-template.sql` when adding new spatial tables or columns.
+  - `@ivr-endpoint-template.py` for new Twilio voice/SMS flow handlers.
