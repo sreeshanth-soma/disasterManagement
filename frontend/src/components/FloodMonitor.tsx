@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Polygon, Popup } from 'react-leaflet';
 import { AlertTriangle, Plus, Filter, Download } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { floodEventApi } from '../services/api';
-import type { FloodEvent } from '../types';
+import type { GeoJSONFeature, FloodEventProperties } from '../types';
 
 // Fix for default markers in react-leaflet
 import L from 'leaflet';
@@ -18,16 +18,19 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const FloodMonitor: React.FC = () => {
-  const [floodEvents, setFloodEvents] = useState<FloodEvent[]>([]);
+  const [floodFeatures, setFloodFeatures] = useState<GeoJSONFeature<FloodEventProperties>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<FloodEvent | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<GeoJSONFeature<FloodEventProperties> | null>(null);
 
   useEffect(() => {
     const fetchFloodEvents = async () => {
       try {
         const response = await floodEventApi.getAll();
-        setFloodEvents(response.data.results);
+        if (!response || !response.data || !Array.isArray(response.data.features)) {
+          throw new Error('Unexpected API response format for flood events');
+        }
+        setFloodFeatures(response.data.features);
         setError(null);
       } catch (err) {
         setError('Failed to load flood events');
@@ -54,6 +57,15 @@ const FloodMonitor: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="alert alert-danger">
+        <AlertTriangle className="w-5 h-5" />
+        <span>{error}</span>
       </div>
     );
   }
@@ -95,7 +107,7 @@ const FloodMonitor: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Events</p>
-              <p className="text-2xl font-bold text-gray-900">{floodEvents.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{floodFeatures.length}</p>
             </div>
             <AlertTriangle className="w-8 h-8 text-disaster-600" />
           </div>
@@ -105,7 +117,7 @@ const FloodMonitor: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">High Confidence</p>
               <p className="text-2xl font-bold text-disaster-600">
-                {floodEvents.filter(event => event.confidence >= 0.8).length}
+                {floodFeatures.filter(feature => feature.properties.confidence >= 0.8).length}
               </p>
             </div>
             <div className="w-8 h-8 bg-disaster-600 rounded-full flex items-center justify-center">
@@ -118,8 +130,8 @@ const FloodMonitor: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">Recent (24h)</p>
               <p className="text-2xl font-bold text-blue-600">
-                {floodEvents.filter(event => 
-                  new Date(event.detected_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
+                {floodFeatures.filter(feature => 
+                  new Date(feature.properties.detected_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
                 ).length}
               </p>
             </div>
@@ -144,31 +156,32 @@ const FloodMonitor: React.FC = () => {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
-              {floodEvents.map((event) => {
-                if (event.geom && event.geom.coordinates) {
-                  // Convert coordinates to the format expected by react-leaflet
-                  const positions = event.geom.coordinates[0].map(coord => [coord[1], coord[0]] as [number, number]);
+              {floodFeatures.map((feature) => {
+                // Ensure geometry is a Polygon and extract coordinates correctly
+                if (feature.geometry && feature.geometry.type === 'Polygon' && Array.isArray(feature.geometry.coordinates[0])) {
+                  const polygonCoordinates = feature.geometry.coordinates[0] as [number, number][];
+                  const positions = polygonCoordinates.map(coord => [coord[1], coord[0]] as [number, number]);
                   
                   return (
                     <Polygon
-                      key={event.id}
+                      key={feature.id}
                       positions={positions}
                       pathOptions={{
-                        color: getConfidenceColor(event.confidence),
-                        fillColor: getConfidenceColor(event.confidence),
+                        color: getConfidenceColor(feature.properties.confidence),
+                        fillColor: getConfidenceColor(feature.properties.confidence),
                         fillOpacity: 0.3,
                         weight: 2,
                       }}
                       eventHandlers={{
-                        click: () => setSelectedEvent(event),
+                        click: () => setSelectedFeature(feature),
                       }}
                     >
                       <Popup>
                         <div className="p-2">
-                          <h3 className="font-semibold text-gray-900">{event.name}</h3>
-                          <p className="text-sm text-gray-600">Confidence: {(event.confidence * 100).toFixed(1)}%</p>
-                          <p className="text-sm text-gray-600">Source: {event.source}</p>
-                          <p className="text-sm text-gray-600">Detected: {formatDate(event.detected_at)}</p>
+                          <h3 className="font-semibold text-gray-900">{feature.properties.name}</h3>
+                          <p className="text-sm text-gray-600">Confidence: {(feature.properties.confidence * 100).toFixed(1)}%</p>
+                          <p className="text-sm text-gray-600">Source: {feature.properties.source}</p>
+                          <p className="text-sm text-gray-600">Detected: {formatDate(feature.properties.detected_at)}</p>
                         </div>
                       </Popup>
                     </Polygon>
@@ -184,27 +197,27 @@ const FloodMonitor: React.FC = () => {
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Events</h3>
           <div className="space-y-3 max-h-80 overflow-y-auto">
-            {floodEvents.slice(0, 10).map((event) => (
+            {floodFeatures.slice(0, 10).map((feature) => (
               <div
-                key={event.id}
+                key={feature.id}
                 className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                  selectedEvent?.id === event.id
+                  selectedFeature?.id === feature.id
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
-                onClick={() => setSelectedEvent(event)}
+                onClick={() => setSelectedFeature(feature)}
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-gray-900">{event.name}</h4>
+                  <h4 className="font-medium text-gray-900">{feature.properties.name}</h4>
                   <span
                     className="px-2 py-1 text-xs font-medium rounded-full text-white"
-                    style={{ backgroundColor: getConfidenceColor(event.confidence) }}
+                    style={{ backgroundColor: getConfidenceColor(feature.properties.confidence) }}
                   >
-                    {(event.confidence * 100).toFixed(0)}%
+                    {(feature.properties.confidence * 100).toFixed(0)}%
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mt-1">Source: {event.source}</p>
-                <p className="text-sm text-gray-500">{formatDate(event.detected_at)}</p>
+                <p className="text-sm text-gray-600 mt-1">Source: {feature.properties.source}</p>
+                <p className="text-sm text-gray-500">{formatDate(feature.properties.detected_at)}</p>
               </div>
             ))}
           </div>
@@ -212,17 +225,17 @@ const FloodMonitor: React.FC = () => {
       </div>
 
       {/* Selected Event Details */}
-      {selectedEvent && (
+      {selectedFeature && (
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Event Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-medium text-gray-900 mb-2">{selectedEvent.name}</h4>
+              <h4 className="font-medium text-gray-900 mb-2">{selectedFeature.properties.name}</h4>
               <div className="space-y-2 text-sm">
-                <p><span className="font-medium">Confidence:</span> {(selectedEvent.confidence * 100).toFixed(1)}%</p>
-                <p><span className="font-medium">Source:</span> {selectedEvent.source}</p>
-                <p><span className="font-medium">Detected:</span> {formatDate(selectedEvent.detected_at)}</p>
-                <p><span className="font-medium">Event ID:</span> {selectedEvent.id}</p>
+                <p><span className="font-medium">Confidence:</span> {(selectedFeature.properties.confidence * 100).toFixed(1)}%</p>
+                <p><span className="font-medium">Source:</span> {selectedFeature.properties.source}</p>
+                <p><span className="font-medium">Detected:</span> {formatDate(selectedFeature.properties.detected_at)}</p>
+                <p><span className="font-medium">Event ID:</span> {selectedFeature.id}</p>
               </div>
             </div>
             <div>

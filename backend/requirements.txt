@@ -5,3 +5,4 @@ celery
 redis
 django-cors-headers
 gunicorn
+djangorestframework-gis

@@ -1,5 +1,11 @@
 import axios from 'axios';
-import type { FloodEvent, RoadSegment, VictimReport, ApiResponse, DashboardStats } from '../types';
+import type {
+  GeoJSONFeatureCollection,
+  FloodEventProperties,
+  RoadSegmentProperties,
+  VictimReportProperties,
+  DashboardStats,
+} from '../types';
 
 // Configure axios with base URL
 const api = axios.create({
@@ -9,49 +15,73 @@ const api = axios.create({
   },
 });
 
+// Helper to safely extract features and log if unexpected
+const getFeatures = <T>(response: any, endpoint: string): GeoJSONFeature<T>[] => {
+  if (!response || !response.data || !Array.isArray(response.data.features)) {
+    console.error(`API Error: Unexpected response format from ${endpoint}`, response);
+    return [];
+  }
+  return response.data.features as GeoJSONFeature<T>[];
+};
+
 // Flood Events API
 export const floodEventApi = {
-  getAll: () => api.get<ApiResponse<FloodEvent>>('/flood-events/'),
-  getById: (id: number) => api.get<FloodEvent>(`/flood-events/${id}/`),
-  create: (data: Partial<FloodEvent>) => api.post<FloodEvent>('/flood-events/', data),
-  update: (id: number, data: Partial<FloodEvent>) => api.put<FloodEvent>(`/flood-events/${id}/`, data),
+  getAll: () => api.get<GeoJSONFeatureCollection<FloodEventProperties>>('/flood-events/'),
+  getById: (id: number) => api.get<GeoJSONFeature<FloodEventProperties>>(`/flood-events/${id}/`),
+  create: (data: Partial<FloodEventProperties & { geom: any }>) => api.post<GeoJSONFeature<FloodEventProperties>>('/flood-events/', data),
+  update: (id: number, data: Partial<FloodEventProperties & { geom: any }>) => api.put<GeoJSONFeature<FloodEventProperties>>(`/flood-events/${id}/`, data),
   delete: (id: number) => api.delete(`/flood-events/${id}/`),
 };
 
 // Road Segments API
 export const roadSegmentApi = {
-  getAll: () => api.get<ApiResponse<RoadSegment>>('/road-segments/'),
-  getById: (id: number) => api.get<RoadSegment>(`/road-segments/${id}/`),
-  create: (data: Partial<RoadSegment>) => api.post<RoadSegment>('/road-segments/', data),
-  update: (id: number, data: Partial<RoadSegment>) => api.put<RoadSegment>(`/road-segments/${id}/`, data),
+  getAll: () => api.get<GeoJSONFeatureCollection<RoadSegmentProperties>>('/road-segments/'),
+  getById: (id: number) => api.get<GeoJSONFeature<RoadSegmentProperties>>(`/road-segments/${id}/`),
+  create: (data: Partial<RoadSegmentProperties & { geom: any }>) => api.post<GeoJSONFeature<RoadSegmentProperties>>('/road-segments/', data),
+  update: (id: number, data: Partial<RoadSegmentProperties & { geom: any }>) => api.put<GeoJSONFeature<RoadSegmentProperties>>(`/road-segments/${id}/`, data),
   delete: (id: number) => api.delete(`/road-segments/${id}/`),
 };
 
 // Victim Reports API
 export const victimReportApi = {
-  getAll: () => api.get<ApiResponse<VictimReport>>('/victim-reports/'),
-  getById: (id: number) => api.get<VictimReport>(`/victim-reports/${id}/`),
-  create: (data: Partial<VictimReport>) => api.post<VictimReport>('/victim-reports/', data),
-  update: (id: number, data: Partial<VictimReport>) => api.put<VictimReport>(`/victim-reports/${id}/`, data),
+  getAll: () => api.get<GeoJSONFeatureCollection<VictimReportProperties>>('/victim-reports/'),
+  getById: (id: number) => api.get<GeoJSONFeature<VictimReportProperties>>(`/victim-reports/${id}/`),
+  create: (data: Partial<VictimReportProperties & { location: any }>) => api.post<GeoJSONFeature<VictimReportProperties>>('/victim-reports/', data),
+  update: (id: number, data: Partial<VictimReportProperties & { location: any }>) => api.put<GeoJSONFeature<VictimReportProperties>>(`/victim-reports/${id}/`, data),
   delete: (id: number) => api.delete(`/victim-reports/${id}/`),
 };
 
 // Dashboard stats
 export const dashboardApi = {
   getStats: async (): Promise<DashboardStats> => {
-    // For now, calculate stats from individual API calls
-    const [floods, roads, victims] = await Promise.all([
-      floodEventApi.getAll(),
-      roadSegmentApi.getAll(),
-      victimReportApi.getAll(),
-    ]);
+    console.log("Fetching dashboard stats...");
+    try {
+      const [floodsResponse, roadsResponse, victimsResponse] = await Promise.all([
+        floodEventApi.getAll(),
+        roadSegmentApi.getAll(),
+        victimReportApi.getAll(),
+      ]);
 
-    return {
-      activeFloodEvents: floods.data.count,
-      blockedRoads: roads.data.results.filter(road => road.status === 'blocked' || road.status === 'flooded').length,
-      pendingReports: victims.data.results.filter(report => report.status === 'new').length,
-      rescuedVictims: victims.data.results.filter(report => report.status === 'rescued').length,
-    };
+      console.log("Raw API responses:", { floodsResponse, roadsResponse, victimsResponse });
+
+      const floodFeatures = getFeatures<FloodEventProperties>(floodsResponse, '/flood-events/');
+      const roadFeatures = getFeatures<RoadSegmentProperties>(roadsResponse, '/road-segments/');
+      const victimFeatures = getFeatures<VictimReportProperties>(victimsResponse, '/victim-reports/');
+
+      const floodEvents = floodFeatures.map(f => ({ id: f.id, ...f.properties, geom: f.geometry }));
+      const roadSegments = roadFeatures.map(f => ({ id: f.id, ...f.properties, geom: f.geometry }));
+      const victimReports = victimFeatures.map(f => ({ id: f.id, ...f.properties, location: f.geometry }));
+
+      return {
+        activeFloodEvents: floodEvents.length,
+        blockedRoads: roadSegments.filter(road => road.status === 'blocked' || road.status === 'flooded').length,
+        pendingReports: victimReports.filter(report => report.status === 'new').length,
+        rescuedVictims: victimReports.filter(report => report.status === 'rescued').length,
+      };
+    } catch (error) {
+      console.error("Error in getStats:", error);
+      throw error; // Re-throw to be caught by the component's error handling
+    }
   },
 };
 

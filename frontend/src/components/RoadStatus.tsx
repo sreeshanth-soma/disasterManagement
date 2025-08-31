@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigation, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { roadSegmentApi } from '../services/api';
-import type { RoadSegment } from '../types';
+import type { GeoJSONFeature, RoadSegmentProperties } from '../types';
 
 const RoadStatus: React.FC = () => {
-  const [roadSegments, setRoadSegments] = useState<RoadSegment[]>([]);
+  const [roadFeatures, setRoadFeatures] = useState<GeoJSONFeature<RoadSegmentProperties>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -12,7 +12,7 @@ const RoadStatus: React.FC = () => {
     const fetchRoadSegments = async () => {
       try {
         const response = await roadSegmentApi.getAll();
-        setRoadSegments(response.data.results);
+        setRoadFeatures(response.data.features);
         setError(null);
       } catch (err) {
         setError('Failed to load road segments');
@@ -59,9 +59,9 @@ const RoadStatus: React.FC = () => {
     );
   }
 
-  const normalRoads = roadSegments.filter(road => road.status === 'normal').length;
-  const floodedRoads = roadSegments.filter(road => road.status === 'flooded').length;
-  const blockedRoads = roadSegments.filter(road => road.status === 'blocked').length;
+  const normalRoads = roadFeatures.filter(feature => feature.properties.status === 'normal').length;
+  const floodedRoads = roadFeatures.filter(feature => feature.properties.status === 'flooded').length;
+  const blockedRoads = roadFeatures.filter(feature => feature.properties.status === 'blocked').length;
 
   return (
     <div className="space-y-6">
@@ -86,7 +86,7 @@ const RoadStatus: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total Roads</p>
-              <p className="text-2xl font-bold text-gray-900">{roadSegments.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{roadFeatures.length}</p>
             </div>
             <Navigation className="w-8 h-8 text-gray-600" />
           </div>
@@ -142,21 +142,21 @@ const RoadStatus: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {roadSegments.map((road) => (
-                <tr key={road.id}>
+              {roadFeatures.map((feature) => (
+                <tr key={feature.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {road.osm_id}
+                    {feature.properties.osm_id}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
-                      {getStatusIcon(road.status)}
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(road.status)}`}>
-                        {road.status.charAt(0).toUpperCase() + road.status.slice(1)}
+                      {getStatusIcon(feature.properties.status)}
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(feature.properties.status)}`}>
+                        {feature.properties.status.charAt(0).toUpperCase() + feature.properties.status.slice(1)}
                       </span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(road.last_checked).toLocaleString()}
+                    {new Date(feature.properties.last_checked).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button className="text-blue-600 hover:text-blue-900 mr-3">
