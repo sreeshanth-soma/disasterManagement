@@ -3,6 +3,8 @@ import { GoogleMap, Polyline, InfoWindow } from '@react-google-maps/api';
 import { Navigation, AlertTriangle, CheckCircle, XCircle, RefreshCw, MapPin, Clock, TrendingUp, Loader2 } from 'lucide-react';
 import { roadSegmentApi } from '../services/api';
 import type { GeoJSONFeature, RoadSegmentProperties, GeoJSONLineString } from '../types';
+import BlogCard from './BlogCard';
+import '../styles/BlogCard.css';
 
 const containerStyle = {
   width: '100%',
@@ -384,40 +386,53 @@ const RoadStatus: React.FC<RoadStatusProps> = ({ isLoaded, loadError }) => {
           </div>
         )}
 
-        {/* Traffic Impact Summary */}
-        <div className="theme-card mt-6 animate-fade-in delay-700">
-          <h3 className="text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-warning-600" />
-            Traffic Impact Summary
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center p-4 bg-success-50 rounded-lg animate-pulse-effect">
-              <div className="w-12 h-12 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <CheckCircle className="w-6 h-6 text-success-600" />
-              </div>
-              <h4 className="font-semibold text-text-primary">Normal Flow</h4>
-              <p className="text-2xl font-bold text-success-600">{roadFeatures.length > 0 ? Math.round((normalRoads / roadFeatures.length) * 100) : 0}%</p>
-              <p className="text-xs text-gray-500 mt-1">of roads operational</p>
-            </div>
+        {/* Road Segments Blog Cards */}
+        <div className="blog-card-section mt-6 animate-fade-in delay-700">
+          <h1>Road Segments</h1>
+          <div className="blog-cards-grid">
+            {roadFeatures.map((road) => (
+              <BlogCard
+                key={road.id}
+                title={`Road Segment #${road.properties.osm_id}`}
+                description={`Status: ${road.properties.status.charAt(0).toUpperCase() + road.properties.status.slice(1)} | Last checked: ${new Date(road.properties.last_checked).toLocaleString()}`}
+                imageUrl={`https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=250&fit=crop&crop=center&road=${road.id}`}
+                details={`OSM ID: ${road.properties.osm_id} | Segment ID: ${road.id}`}
+                onClick={() => setSelectedRoad(road)}
+              />
+            ))}
+          </div>
+          <div className="credit">
+            Created by <a className="creator-link" href="#" onClick={(e) => e.preventDefault()}>DRCH System</a>
+          </div>
+        </div>
+
+        {/* Traffic Impact Summary Blog Cards */}
+        <div className="blog-card-section mt-6 animate-fade-in delay-800">
+          <h1>Traffic Impact Summary</h1>
+          <div className="blog-cards-grid">
+            <BlogCard
+              title="Normal Flow"
+              description={`${roadFeatures.length > 0 ? Math.round((normalRoads / roadFeatures.length) * 100) : 0}% of roads operational`}
+              imageUrl="https://images.unsplash.com/photo-1545459720-aac8509eb02c?w=400&h=250&fit=crop&crop=center"
+              details={`${normalRoads} out of ${roadFeatures.length} road segments are functioning normally`}
+            />
             
-            <div className="text-center p-4 bg-disaster-50 rounded-lg animate-pulse-effect delay-100">
-              <div className="w-12 h-12 bg-disaster-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <AlertTriangle className="w-6 h-6 text-disaster-600" />
-              </div>
-              <h4 className="font-semibold text-text-primary">Flood Impact</h4>
-              <p className="text-2xl font-bold text-disaster-600">{floodedRoads}</p>
-              <p className="text-xs text-gray-500 mt-1">segments affected</p>
-            </div>
+            <BlogCard
+              title="Flood Impact"
+              description={`${floodedRoads} segments affected by flooding`}
+              imageUrl="https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=250&fit=crop&crop=center"
+              details={`Water on roadway affecting traffic flow and safety`}
+            />
             
-            <div className="text-center p-4 bg-warning-50 rounded-lg animate-pulse-effect delay-200">
-              <div className="w-12 h-12 bg-warning-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <XCircle className="w-6 h-6 text-warning-600" />
-              </div>
-              <h4 className="font-semibold text-text-primary">Total Closures</h4>
-              <p className="text-2xl font-bold text-warning-600">{blockedRoads + floodedRoads}</p>
-              <p className="text-xs text-gray-500 mt-1">roads unavailable</p>
-            </div>
+            <BlogCard
+              title="Total Closures"
+              description={`${blockedRoads + floodedRoads} roads unavailable for traffic`}
+              imageUrl="https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=250&fit=crop&crop=center"
+              details={`Combined impact of blocked and flooded road segments`}
+            />
+          </div>
+          <div className="credit">
+            Created by <a className="creator-link" href="#" onClick={(e) => e.preventDefault()}>DRCH System</a>
           </div>
         </div>
       </div>

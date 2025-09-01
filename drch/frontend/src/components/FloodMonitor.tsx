@@ -3,6 +3,8 @@ import { GoogleMap, Polygon, InfoWindow } from '@react-google-maps/api';
 import { AlertTriangle, Plus, Filter, Download, Droplets, TrendingUp, Clock, Zap, Loader2 } from 'lucide-react';
 import { floodEventApi } from '../services/api';
 import type { GeoJSONFeature, FloodEventProperties, GeoJSONPolygon } from '../types';
+import BlogCard from './BlogCard';
+import '../styles/BlogCard.css';
 
 const containerStyle = {
   width: '100%',
@@ -349,6 +351,26 @@ const FloodMonitor: React.FC<FloodMonitorProps> = ({ isLoaded, loadError }) => {
             </div>
           </div>
         )}
+
+        {/* Flood Reports Blog Cards */}
+        <div className="blog-card-section mt-6 animate-fade-in delay-700">
+          <h1>Flood Reports</h1>
+          <div className="blog-cards-grid">
+            {floodFeatures.map((feature) => (
+              <BlogCard
+                key={feature.id}
+                title={feature.properties.name}
+                description={`Confidence: ${(feature.properties.confidence * 100).toFixed(0)}% | Source: ${feature.properties.source} | Detected: ${formatDate(feature.properties.detected_at)}`}
+                imageUrl={`https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=250&fit=crop&crop=center&flood=${feature.id}`}
+                details={`Event ID: ${feature.id} | High confidence flood detection requiring immediate attention`}
+                onClick={() => setSelectedFeature(feature)}
+              />
+            ))}
+          </div>
+          <div className="credit">
+            Created by <a className="creator-link" href="#" onClick={(e) => e.preventDefault()}>DRCH System</a>
+          </div>
+        </div>
       </div>
     </div>
   );
