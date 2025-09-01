@@ -163,10 +163,10 @@ const FloodMonitor: React.FC<FloodMonitorProps> = ({ isLoaded, loadError }) => {
           </div>
         </div>
 
-        {/* Map and Event List */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Map */}
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
           {/* Map */}
-          <div className="lg:col-span-2 map-container animate-fade-in delay-400">
+          <div className="map-container animate-fade-in delay-400">
             {isLoaded ? (
               <GoogleMap
                 mapContainerStyle={containerStyle}
@@ -257,47 +257,7 @@ const FloodMonitor: React.FC<FloodMonitorProps> = ({ isLoaded, loadError }) => {
             )}
           </div>
 
-          {/* Event List */}
-          <div className="theme-card animate-slide-in-left delay-500">
-            <h3 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-disaster-600" />
-              Active Events
-            </h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {floodFeatures.slice(0, 10).map((feature) => (
-                <div
-                  key={feature.id}
-                  className={`p-4 rounded-lg border cursor-pointer transition-all duration-200 ${
-                    selectedFeature?.id === feature.id
-                      ? 'border-disaster-500 bg-disaster-50 shadow-md animate-pulse-effect'
-                      : 'border-gray-200 hover:border-disaster-300 hover:shadow-sm'
-                  }`}
-                  onClick={() => setSelectedFeature(feature)}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-text-primary text-sm">{feature.properties.name}</h4>
-                    <span
-                      className="badge"
-                      style={{ backgroundColor: getConfidenceColor(feature.properties.confidence), color: 'white' }}
-                    >
-                      {(feature.properties.confidence * 100).toFixed(0)}%
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-600 mb-1">Source: {feature.properties.source}</p>
-                  <p className="text-xs text-gray-500">{formatDate(feature.properties.detected_at)}</p>
-                  
-                  <div className="mt-2 flex gap-1">
-                    <button className="badge bg-disaster-100 text-disaster-700 hover:bg-disaster-200" onClick={() => console.log('View Details', feature.id)}>
-                      View Details
-                    </button>
-                    <button className="badge bg-warning-100 text-warning-700 hover:bg-warning-200" onClick={() => console.log('Generate Alert', feature.id)}>
-                      Generate Alert
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+
         </div>
 
         {/* Selected Event Details */}
@@ -357,14 +317,49 @@ const FloodMonitor: React.FC<FloodMonitorProps> = ({ isLoaded, loadError }) => {
           <h1>Flood Reports</h1>
           <div className="blog-cards-grid">
             {floodFeatures.map((feature) => (
-              <BlogCard
-                key={feature.id}
-                title={feature.properties.name}
-                description={`Confidence: ${(feature.properties.confidence * 100).toFixed(0)}% | Source: ${feature.properties.source} | Detected: ${formatDate(feature.properties.detected_at)}`}
-                imageUrl={`https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=250&fit=crop&crop=center&flood=${feature.id}`}
-                details={`Event ID: ${feature.id} | High confidence flood detection requiring immediate attention`}
-                onClick={() => setSelectedFeature(feature)}
-              />
+              <div key={feature.id} className="relative">
+                <BlogCard
+                  title={feature.properties.name}
+                  description={`Confidence: ${(feature.properties.confidence * 100).toFixed(0)}% | Source: ${feature.properties.source} | Detected: ${formatDate(feature.properties.detected_at)}`}
+                  imageUrl={`https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=250&fit=crop&crop=center&flood=${feature.id}`}
+                  details={`Event ID: ${feature.id} | High confidence flood detection requiring immediate attention`}
+                  onClick={() => setSelectedFeature(feature)}
+                />
+                
+                {/* Action Buttons Overlay */}
+                <div className="absolute bottom-4 left-4 right-4 flex gap-2 z-10">
+                  <button 
+                    className="px-3 py-1 bg-disaster-600 text-white text-xs rounded-full hover:bg-disaster-700 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log('Issue Emergency Alert', feature.id);
+                    }}
+                  >
+                    <AlertTriangle className="w-3 h-3 inline mr-1" />
+                    Alert
+                  </button>
+                  <button 
+                    className="px-3 py-1 bg-warning-600 text-white text-xs rounded-full hover:bg-warning-700 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log('Update Severity', feature.id);
+                    }}
+                  >
+                    <TrendingUp className="w-3 h-3 inline mr-1" />
+                    Update
+                  </button>
+                  <button 
+                    className="px-3 py-1 bg-secondary-600 text-white text-xs rounded-full hover:bg-secondary-700 transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log('Export Report', feature.id);
+                    }}
+                  >
+                    <Download className="w-3 h-3 inline mr-1" />
+                    Export
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
           <div className="credit">
