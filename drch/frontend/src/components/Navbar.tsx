@@ -26,6 +26,7 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, onTabChange }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'floods', label: 'Flood Monitor' },
+    { id: 'social-media', label: 'Social Media Alerts' },
     { id: 'roads', label: 'Road Status' },
     { id: 'victims', label: 'Victim Reports' },
     { id: 'communications', label: 'Communications' }

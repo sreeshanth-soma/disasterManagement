@@ -5,9 +5,10 @@ import Dashboard from './components/Dashboard';
 import FloodMonitor from './components/FloodMonitor';
 import RoadStatus from './components/RoadStatus';
 import VictimReports from './components/VictimReports';
+import SocialMediaAlerts from './components/SocialMediaAlerts';
 import { useJsApiLoader } from '@react-google-maps/api';
 
-type TabType = 'dashboard' | 'floods' | 'roads' | 'victims' | 'communications';
+type TabType = 'dashboard' | 'floods' | 'roads' | 'victims' | 'communications' | 'social-media';
 
 const libraries: ("places" | "drawing" | "geometry" | "localContext" | "visualization")[] = ["maps"];
 
@@ -31,6 +32,8 @@ const App: React.FC = () => {
         return <RoadStatus isLoaded={isLoaded} loadError={loadError} />;
       case 'victims':
         return <VictimReports isLoaded={isLoaded} loadError={loadError} />;
+      case 'social-media':
+        return <SocialMediaAlerts />;
       case 'communications':
         return <div className="text-center p-8"><h2 className="text-2xl font-bold text-gray-600">Communications Module Coming Soon</h2></div>;
       default:

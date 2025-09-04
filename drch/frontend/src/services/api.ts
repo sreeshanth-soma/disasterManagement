@@ -86,6 +86,8 @@ export const floodEventApi = {
   create: (data: Partial<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>>) => api.post<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>>('/flood-events/', data),
   update: (id: number, data: Partial<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>>) => api.put<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>>(`/flood-events/${id}/`, data),
   delete: (id: number) => api.delete(`/flood-events/${id}/`),
+  triggerScrape: () => api.post('/flood-events/trigger_social_media_scrape/'),
+  getStats: () => api.get('/flood-events/stats/'),
 };
 
 export const roadSegmentApi = {
@@ -108,6 +110,39 @@ export const victimReportApi = {
   create: (data: Partial<GeoJSONFeature<VictimReportProperties, GeoJSONPoint>>) => api.post<GeoJSONFeature<VictimReportProperties, GeoJSONPoint>>('/victim-reports/', data),
   update: (id: number, data: Partial<GeoJSONFeature<VictimReportProperties, GeoJSONPoint>>) => api.put<GeoJSONFeature<VictimReportProperties, GeoJSONPoint>>(`/victim-reports/${id}/`, data),
   delete: (id: number) => api.delete(`/victim-reports/${id}/`),
+};
+
+export const socialMediaApi = {
+  // For now, get social media posts from flood events API
+  getAll: async () => {
+    const response = await api.get('/flood-events/');
+    // Filter for social media posts
+    const allEvents = extractFeatures(response);
+    return allEvents.filter(event => event.properties.source === 'social_media');
+  },
+  getFloodRelevant: async () => {
+    const response = await api.get('/flood-events/');
+    const allEvents = extractFeatures(response);
+    return allEvents.filter(event => event.properties.source === 'social_media');
+  },
+  getStats: async () => {
+    const response = await api.get('/flood-events/');
+    const allEvents = extractFeatures(response);
+    const socialMediaEvents = allEvents.filter(event => event.properties.source === 'social_media');
+    return {
+      data: {
+        total_posts: socialMediaEvents.length,
+        flood_relevant_posts: socialMediaEvents.length,
+        processed_posts: socialMediaEvents.length,
+        platform_stats: {
+          news: socialMediaEvents.filter(e => e.properties.social_media_source === 'news').length,
+          reddit: socialMediaEvents.filter(e => e.properties.social_media_source === 'reddit').length,
+        },
+        relevance_rate: 1.0
+      }
+    };
+  },
+  getById: (id: number) => api.get(`/flood-events/${id}/`),
 };
 
 export const dashboardApi = {

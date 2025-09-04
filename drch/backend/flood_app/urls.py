@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter()
-router.register('', views.FloodEventViewSet)
+router.register('', views.FloodEventViewSet, basename='flood-events')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -5,3 +5,17 @@ celery
 redis
 django-cors-headers
 gunicorn
+# Social media scraping (FREE alternatives)
+youtube-dl
+requests
+beautifulsoup4
+# tweepy  # Removed - Twitter API is too expensive for free tier
+# NLP and text processing
+nltk
+spacy
+textblob
+# Location processing
+geopy
+# Additional utilities
+python-dotenv
+schedule

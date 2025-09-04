@@ -17,9 +17,17 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+from flood_app.views import SocialMediaPostViewSet
+from rest_framework.routers import DefaultRouter
+
+# Create router for social media endpoints
+social_router = DefaultRouter()
+social_router.register('social-media', SocialMediaPostViewSet, basename='social-media-posts')
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/flood-events/', include('flood_app.urls')),
+    path('api/flood-events/', include(social_router.urls)),  # Add social media endpoints
     path('api/road-segments/', include('routing_app.urls')),
     path('api/victim-reports/', include('communications_app.urls')),
 ]
