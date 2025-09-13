@@ -1,15 +1,13 @@
-@layer components {
-  /* Global resets for Navbar elements to ensure consistent styling */
-  .navbar-container * {
-    box-sizing: border-box;
-  }
+/* Global resets for Navbar elements to ensure consistent styling */
+.navbar-container * {
+  box-sizing: border-box;
+}
 
-  .navbar-container button {
-    border: 0;
-    padding: 0;
-    background: transparent;
-    cursor: pointer;
-  }
+.navbar-container button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .navbar,

@@ -4,10 +4,11 @@ psycopg2-binary
 celery
 redis
 django-cors-headers
-gunicorn
-# Social media scraping (FREE alternatives)
-youtube-dl
-requests
+gunicorn==22.0.0
+channels
+# Social Media & Scraping
+youtube-dl==2021.12.17
+requests==2.31.0
 beautifulsoup4
 # tweepy  # Removed - Twitter API is too expensive for free tier
 # NLP and text processing

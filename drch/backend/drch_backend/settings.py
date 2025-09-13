@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'channels', # Django Channels
+    'django_celery_beat',
     'flood_app',
     'routing_app',
     'communications_app',
@@ -96,7 +97,8 @@ DATABASES = {
 
 # GDAL Library Path for macOS (if needed)
 # Set this in your environment or uncomment if encountering GDAL issues on macOS
-# GDAL_LIBRARY_PATH = '/opt/homebrew/opt/gdal/lib/libgdal.dylib'
+GDAL_LIBRARY_PATH = '/opt/homebrew/lib/libgdal.dylib'
+GEOS_LIBRARY_PATH = '/opt/homebrew/lib/libgeos_c.dylib'
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

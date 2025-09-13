@@ -2,7 +2,7 @@ import { useState } from 'react';
 import './styles/Navbar.css';
 import Navbar from './components/Navbar';
 import Dashboard from './components/Dashboard';
-import FloodMonitor from './components/FloodMonitor';
+import FloodDashboard from './components/FloodDashboard';
 import RoadStatus from './components/RoadStatus';
 import VictimReports from './components/VictimReports';
 import SocialMediaAlerts from './components/SocialMediaAlerts';
@@ -22,16 +22,27 @@ const App: React.FC = () => {
     libraries: libraries,
   });
 
+  // Check if API key is missing or has billing issues
+  const isApiKeyMissing = !apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY_HERE';
+  const hasBillingError = loadError?.message?.includes('BillingNotEnabledMapError') || 
+                         loadError?.message?.includes('billing');
+
   const renderActiveComponent = () => {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
       case 'floods':
-        return <FloodMonitor isLoaded={isLoaded} loadError={loadError} />;
+        return <FloodDashboard 
+          onAlertClick={(id) => console.log('Alert clicked for:', id)}
+          onEvacuationOrder={(zones) => console.log('Evacuation ordered for zones:', zones)}
+          isLoaded={isLoaded}
+          loadError={loadError || (isApiKeyMissing ? new Error('Google Maps API key not configured') : 
+                     hasBillingError ? new Error('Google Cloud billing not enabled') : undefined)}
+        />;
       case 'roads':
-        return <RoadStatus isLoaded={isLoaded} loadError={loadError} />;
+        return <RoadStatus isLoaded={isLoaded} loadError={loadError || (isApiKeyMissing ? new Error('Google Maps API key not configured') : undefined)} />;
       case 'victims':
-        return <VictimReports isLoaded={isLoaded} loadError={loadError} />;
+        return <VictimReports isLoaded={isLoaded} loadError={loadError || (isApiKeyMissing ? new Error('Google Maps API key not configured') : undefined)} />;
       case 'social-media':
         return <SocialMediaAlerts />;
       case 'communications':

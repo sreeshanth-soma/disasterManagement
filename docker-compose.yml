@@ -43,13 +43,34 @@ services:
 
   celery_worker:
     build:
-      context: /Users/somasreeshanth/desktop/disasterManagement/drch/backend
+      context: ./drch/backend
       dockerfile: Dockerfile
     platform: linux/amd64
     container_name: drch_celery_worker
     command: celery -A drch_backend worker -l info
     volumes:
-      - ../drch/backend:/app
+      - ./drch/backend:/app
+    depends_on:
+      - db
+      - redis
+      - web
+    environment:
+      POSTGRES_DB: drch_db
+      POSTGRES_USER: drch_user
+      POSTGRES_PASSWORD: drch_password
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+
+  celery_beat:
+    build:
+      context: ./drch/backend
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: drch_celery_beat
+    command: celery -A drch_backend beat -l info
+    volumes:
+      - ./drch/backend:/app
     depends_on:
       - db
       - redis

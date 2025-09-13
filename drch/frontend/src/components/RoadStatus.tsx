@@ -86,7 +86,40 @@ const RoadStatus: React.FC<RoadStatusProps> = ({ isLoaded, loadError }) => {
     }
   };
 
-  if (loadError) return <div>Error loading Google Maps</div>;
+  if (loadError) {
+    return (
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">
+            <AlertTriangle className="w-12 h-12 mx-auto mb-2" />
+            <h3 className="text-lg font-semibold">Map Loading Error</h3>
+          </div>
+          <p className="text-gray-600 mb-4">{loadError.message}</p>
+          {(loadError.message.includes('API key') || loadError.message.includes('billing')) && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-left">
+              <h4 className="font-semibold text-yellow-800 mb-2">To fix this:</h4>
+              {loadError.message.includes('billing') ? (
+                <ol className="text-sm text-yellow-700 space-y-1">
+                  <li>1. Go to Google Cloud Console</li>
+                  <li>2. Enable billing for your project</li>
+                  <li>3. Add a payment method (free tier available)</li>
+                  <li>4. Refresh the page</li>
+                  <li className="text-xs text-yellow-600 mt-2">Note: Google Maps offers $200/month free credit</li>
+                </ol>
+              ) : (
+                <ol className="text-sm text-yellow-700 space-y-1">
+                  <li>1. Get a Google Maps API key from the Google Cloud Console</li>
+                  <li>2. Create a .env file in the frontend directory</li>
+                  <li>3. Add: VITE_GOOGLE_MAPS_API_KEY=your_api_key_here</li>
+                  <li>4. Restart the development server</li>
+                </ol>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
   if (loading || !isLoaded) {
     return (
       <div className="road-theme page-container">
