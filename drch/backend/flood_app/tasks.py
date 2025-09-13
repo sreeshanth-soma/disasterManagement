@@ -36,6 +36,7 @@ def scrape_social_media():
                     'media_urls': post_data.get('media_urls', []),
                     'flood_relevant': post_data.get('flood_relevant', False),
                     'confidence_score': post_data.get('confidence_score', 0.0),
+                    'gdacs_data': post_data.get('gdacs_data', {}),  # Store GDACS data
                 }
             )
             

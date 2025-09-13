@@ -14,6 +14,9 @@ export interface GeoJSONPolygon {
   coordinates: [number, number][][]; // Array of linear rings (first is exterior, rest are holes)
 }
 
+// Union type for geometries that can be either Point or Polygon
+export type GeoJSONGeometry = GeoJSONPoint | GeoJSONPolygon;
+
 // Properties interfaces
 export interface FloodEventProperties {
   name: string;

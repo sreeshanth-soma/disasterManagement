@@ -47,9 +47,11 @@ class FloodEvent(models.Model):
 class SocialMediaPost(models.Model):
     """Raw social media posts for processing"""
     PLATFORM_CHOICES = [
-        ('reddit', 'Reddit'),
+        ('gdacs', 'GDACS Official'),
+        ('news', 'India News'),
+        ('reddit', 'India Reddit'),
         ('youtube', 'YouTube'),
-        ('news', 'News API'),
+        ('weather', 'India Weather'),
         ('telegram', 'Telegram'),
         ('twitter', 'Twitter/X'),  # Keep for future paid tier
         ('instagram', 'Instagram'),
@@ -57,11 +59,11 @@ class SocialMediaPost(models.Model):
     ]
     
     platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
-    post_id = models.CharField(max_length=255, unique=True)
+    post_id = models.CharField(max_length=500, unique=True)  # Increase for long URLs
     content = models.TextField()
-    author_username = models.CharField(max_length=255)
-    author_display_name = models.CharField(max_length=255, blank=True, null=True)
-    post_url = models.URLField()
+    author_username = models.CharField(max_length=500)  # Increase for long names
+    author_display_name = models.CharField(max_length=500, blank=True, null=True)
+    post_url = models.URLField(max_length=1000)  # Increase for long URLs
     created_at = models.DateTimeField()
     engagement_metrics = models.JSONField(default=dict)  # likes, retweets, views, etc.
     location_data = models.JSONField(default=dict, blank=True, null=True)
@@ -70,6 +72,9 @@ class SocialMediaPost(models.Model):
     flood_relevant = models.BooleanField(default=False)
     confidence_score = models.FloatField(default=0.0)
     created_at_db = models.DateTimeField(default=timezone.now)
+    
+    # GDACS-specific data
+    gdacs_data = models.JSONField(default=dict, blank=True, null=True)  # Store GDACS event details
     
     def __str__(self):
         return f"{self.platform}: {self.author_username} - {self.post_id}"

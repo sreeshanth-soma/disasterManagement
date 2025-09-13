@@ -8,6 +8,7 @@ import type {
   GeoJSONPolygon,
   GeoJSONLineString,
   GeoJSONPoint,
+  GeoJSONGeometry,
   DashboardStats
 } from '../types';
 
@@ -78,13 +79,13 @@ const extractFeatures = <T, G>(response: { data: { results: { features: any[] } 
 };
 
 export const floodEventApi = {
-  getAll: async () => {
+  getAll: async (): Promise<GeoJSONFeature<FloodEventProperties, GeoJSONGeometry>[]> => {
     const response = await api.get<{ results: { features: any[] } }>('/flood-events/');
-    return extractFeatures(response);
+    return extractFeatures<FloodEventProperties, GeoJSONGeometry>(response);
   },
-  getById: (id: number) => api.get<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>>(`/flood-events/${id}/`),
-  create: (data: Partial<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>>) => api.post<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>>('/flood-events/', data),
-  update: (id: number, data: Partial<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>>) => api.put<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>>(`/flood-events/${id}/`, data),
+  getById: (id: number) => api.get<GeoJSONFeature<FloodEventProperties, GeoJSONGeometry>>(`/flood-events/${id}/`),
+  create: (data: Partial<GeoJSONFeature<FloodEventProperties, GeoJSONGeometry>>) => api.post<GeoJSONFeature<FloodEventProperties, GeoJSONGeometry>>('/flood-events/', data),
+  update: (id: number, data: Partial<GeoJSONFeature<FloodEventProperties, GeoJSONGeometry>>) => api.put<GeoJSONFeature<FloodEventProperties, GeoJSONGeometry>>(`/flood-events/${id}/`, data),
   delete: (id: number) => api.delete(`/flood-events/${id}/`),
   triggerScrape: () => api.post('/flood-events/trigger_social_media_scrape/'),
   getStats: () => api.get('/flood-events/stats/'),

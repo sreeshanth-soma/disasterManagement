@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from "framer-motion";
-import { GoogleMap, Polygon, InfoWindow } from '@react-google-maps/api';
+import { GoogleMap, Polygon, Marker, InfoWindow } from '@react-google-maps/api';
 import { floodEventApi } from '../services/api';
-import type { GeoJSONFeature, FloodEventProperties, GeoJSONPolygon } from '../types';
+import type { GeoJSONFeature, FloodEventProperties, GeoJSONGeometry } from '../types';
 
 // Utility function
 const cn = (...classes: Array<string | false | null | undefined>) => {
@@ -472,10 +472,10 @@ function FloodDashboard({
 }: FloodDashboardProps = {}) {
   const [selectedDisaster, setSelectedDisaster] = useState<DisasterData | null>(null);
   const [showEvacuationModal, setShowEvacuationModal] = useState(false);
-  const [floodEvents, setFloodEvents] = useState<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon>[]>([]);
+  const [floodEvents, setFloodEvents] = useState<GeoJSONFeature<FloodEventProperties, GeoJSONGeometry>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMapFeature, setSelectedMapFeature] = useState<GeoJSONFeature<FloodEventProperties, GeoJSONPolygon> | null>(null);
+  const [selectedMapFeature, setSelectedMapFeature] = useState<GeoJSONFeature<FloodEventProperties, GeoJSONGeometry> | null>(null);
   const [mapCenter, setMapCenter] = useState(center);
   const [mapZoom, setMapZoom] = useState(11);
 
@@ -548,11 +548,27 @@ function FloodDashboard({
     // Find the corresponding flood event
     const floodEvent = floodEvents.find(event => event.id.toString() === disaster.id);
     
-    if (floodEvent && floodEvent.geometry && floodEvent.geometry.type === 'Polygon') {
-      // Calculate center of polygon for map centering
-      const coordinates = floodEvent.geometry.coordinates[0] as [number, number][];
-      const centerLat = coordinates.reduce((sum, coord) => sum + coord[1], 0) / coordinates.length;
-      const centerLng = coordinates.reduce((sum, coord) => sum + coord[0], 0) / coordinates.length;
+    if (floodEvent && floodEvent.geometry) {
+      let centerLat: number;
+      let centerLng: number;
+      
+      if (floodEvent.geometry.type === 'Polygon') {
+        // Calculate center of polygon for map centering
+        const coordinates = floodEvent.geometry.coordinates[0] as [number, number][];
+        centerLat = coordinates.reduce((sum, coord) => sum + coord[1], 0) / coordinates.length;
+        centerLng = coordinates.reduce((sum, coord) => sum + coord[0], 0) / coordinates.length;
+      } else if (floodEvent.geometry.type === 'Point') {
+        // For Point geometry, use the coordinates directly
+        const coordinates = floodEvent.geometry.coordinates as [number, number];
+        centerLng = coordinates[0]; // longitude first in GeoJSON
+        centerLat = coordinates[1]; // latitude second in GeoJSON
+      } else {
+        // Fallback for other geometry types or invalid data
+        console.warn('Unsupported geometry type:', floodEvent.geometry.type);
+        setSelectedDisaster(disaster);
+        setSelectedMapFeature(null);
+        return;
+      }
       
       // Update map center and zoom
       setMapCenter({ lat: centerLat, lng: centerLng });
@@ -781,12 +797,51 @@ function FloodDashboard({
                   return null;
                 })}
 
+                {/* Render Flood Event Points as Markers */}
+                {floodEvents.map((feature) => {
+                  if (feature.geometry && feature.geometry.type === 'Point' && Array.isArray(feature.geometry.coordinates) && feature.geometry.coordinates.length >= 2) {
+                    const position = {
+                      lat: feature.geometry.coordinates[1], // latitude second in GeoJSON
+                      lng: feature.geometry.coordinates[0], // longitude first in GeoJSON
+                    };
+
+                    const isSelected = selectedMapFeature?.id === feature.id;
+                    const confidenceColor = getConfidenceColor(feature.properties.confidence);
+
+                    return (
+                      <Marker
+                        key={`marker-${feature.id}`}
+                        position={position}
+                        onClick={() => {
+                          const disaster = data.find(d => d.id === feature.id.toString());
+                          if (disaster) {
+                            handleIncidentSelect(disaster);
+                          }
+                        }}
+                        icon={{
+                          path: google.maps.SymbolPath.CIRCLE,
+                          scale: isSelected ? 12 : 8,
+                          fillColor: isSelected ? '#3b82f6' : confidenceColor,
+                          fillOpacity: isSelected ? 0.9 : 0.7,
+                          strokeColor: '#ffffff',
+                          strokeWeight: isSelected ? 3 : 2,
+                        }}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+
                 {/* InfoWindow for selected feature */}
-                {selectedMapFeature && selectedMapFeature.geometry && selectedMapFeature.geometry.type === 'Polygon' && (
+                {selectedMapFeature && selectedMapFeature.geometry && (
                   <InfoWindow
                     position={{
-                      lat: selectedMapFeature.geometry.coordinates[0][0][1],
-                      lng: selectedMapFeature.geometry.coordinates[0][0][0],
+                      lat: selectedMapFeature.geometry.type === 'Point' 
+                        ? selectedMapFeature.geometry.coordinates[1] 
+                        : selectedMapFeature.geometry.coordinates[0][0][1],
+                      lng: selectedMapFeature.geometry.type === 'Point' 
+                        ? selectedMapFeature.geometry.coordinates[0] 
+                        : selectedMapFeature.geometry.coordinates[0][0][0],
                     }}
                     onCloseClick={() => setSelectedMapFeature(null)}
                   >
@@ -794,8 +849,14 @@ function FloodDashboard({
                       <h3 className="font-semibold text-gray-900 mb-2">{selectedMapFeature.properties.name}</h3>
                       <div className="space-y-1 text-sm text-gray-600">
                         <p><strong>Confidence:</strong> {(selectedMapFeature.properties.confidence * 100).toFixed(1)}%</p>
-                        <p><strong>Source:</strong> {selectedMapFeature.properties.source}</p>
-                        <p><strong>Detected:</strong> {formatDate(selectedMapFeature.properties.detected_at)}</p>
+                        <p><strong>Source:</strong> {selectedMapFeature.properties.source_display || selectedMapFeature.properties.source}</p>
+                        <p><strong>Detected:</strong> {new Date(selectedMapFeature.properties.detected_at).toLocaleString()}</p>
+                        {selectedMapFeature.properties.location_description && (
+                          <p><strong>Location:</strong> {selectedMapFeature.properties.location_description}</p>
+                        )}
+                        {selectedMapFeature.properties.author_username && (
+                          <p><strong>Reported by:</strong> {selectedMapFeature.properties.author_username}</p>
+                        )}
                       </div>
                     </div>
                   </InfoWindow>

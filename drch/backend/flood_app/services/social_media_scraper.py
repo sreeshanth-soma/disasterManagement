@@ -336,55 +336,81 @@ class YouTubeScraper:
 
 
 class SocialMediaScraper:
-    """Main social media scraping orchestrator - Updated with FREE alternatives"""
+    """Main social media scraping orchestrator - India-focused with GDACS integration"""
     
     def __init__(self):
         self.keyword_detector = FloodKeywordDetector()
-        # Use FREE alternatives instead of expensive Twitter API
-        self.reddit_scraper = RedditScraper()
+        # Import India-focused scrapers
+        from .gdacs_scraper import (
+            GDACSFloodScraper, IndiaNewsFloodScraper, 
+            IndiaRedditScraper, IndiaWeatherScraper
+        )
+        
+        # Initialize India-focused scrapers
+        self.gdacs_scraper = GDACSFloodScraper()
+        self.india_news_scraper = IndiaNewsFloodScraper()
+        self.india_reddit_scraper = IndiaRedditScraper()
+        self.weather_scraper = IndiaWeatherScraper()
+        
+        # Keep YouTube for video content
         self.youtube_scraper = YouTubeScraper()
-        self.news_scraper = NewsAPIScraper()
-        self.telegram_scraper = TelegramScraper()
     
     def scrape_all_platforms(self) -> List[Dict]:
-        """Scrape all configured social media platforms"""
+        """Scrape all platforms with focus on India and current data"""
         all_posts = []
         
-        # Scrape Reddit (FREE, no API key needed)
+        # 1. GDACS Official Flood Alerts (Highest Priority)
         try:
-            reddit_posts = self.reddit_scraper.search_flood_posts()
-            all_posts.extend(reddit_posts)
-            logger.info(f"Scraped {len(reddit_posts)} Reddit posts")
+            gdacs_posts = self.gdacs_scraper.get_india_floods(days_back=30)
+            all_posts.extend(gdacs_posts)
+            logger.info(f"🏛️ GDACS: Found {len(gdacs_posts)} official flood alerts for India")
         except Exception as e:
-            logger.error(f"Reddit scraping failed: {e}")
+            logger.error(f"GDACS scraping failed: {e}")
         
-        # Scrape YouTube (FREE with API key)
+        # 2. India News Sources (High Priority)
         try:
-            youtube_posts = self.youtube_scraper.search_flood_videos()
+            india_news_posts = self.india_news_scraper.get_india_flood_news(max_results=30)
+            all_posts.extend(india_news_posts)
+            logger.info(f"📰 India News: Found {len(india_news_posts)} flood news articles")
+        except Exception as e:
+            logger.error(f"India news scraping failed: {e}")
+        
+        # 3. India Reddit Communities (Medium Priority)
+        try:
+            india_reddit_posts = self.india_reddit_scraper.search_india_flood_posts(max_results=20)
+            all_posts.extend(india_reddit_posts)
+            logger.info(f"📱 India Reddit: Found {len(india_reddit_posts)} flood discussions")
+        except Exception as e:
+            logger.error(f"India Reddit scraping failed: {e}")
+        
+        # 4. YouTube (if API is working)
+        try:
+            youtube_posts = self.youtube_scraper.search_flood_videos(
+                query="flood India monsoon waterlogging Mumbai Delhi Chennai", 
+                max_results=15
+            )
             all_posts.extend(youtube_posts)
-            logger.info(f"Scraped {len(youtube_posts)} YouTube videos")
+            logger.info(f"📺 YouTube: Found {len(youtube_posts)} flood videos")
         except Exception as e:
             logger.error(f"YouTube scraping failed: {e}")
         
-        # Scrape News API (FREE tier available)
+        # 5. Weather Alerts (Future implementation)
         try:
-            news_posts = self.news_scraper.search_flood_posts()
-            all_posts.extend(news_posts)
-            logger.info(f"Scraped {len(news_posts)} news articles")
+            weather_posts = self.weather_scraper.get_current_weather_alerts()
+            all_posts.extend(weather_posts)
+            logger.info(f"🌦️ Weather: Found {len(weather_posts)} weather alerts")
         except Exception as e:
-            logger.error(f"News scraping failed: {e}")
+            logger.error(f"Weather scraping failed: {e}")
         
-        # Scrape Telegram (FREE, but requires implementation)
-        try:
-            telegram_posts = self.telegram_scraper.search_flood_posts()
-            all_posts.extend(telegram_posts)
-            logger.info(f"Scraped {len(telegram_posts)} Telegram posts")
-        except Exception as e:
-            logger.error(f"Telegram scraping failed: {e}")
-        
-        # Process posts with NLP
+        # Process posts with enhanced NLP for India
         processed_posts = []
         for post in all_posts:
+            # GDACS posts are already processed and verified
+            if post.get('platform') == 'gdacs':
+                processed_posts.append(post)
+                continue
+            
+            # Process other posts with NLP
             analysis = self.keyword_detector.calculate_flood_relevance(post['content'])
             
             if analysis['is_flood_relevant']:
@@ -396,5 +422,17 @@ class SocialMediaScraper:
                 })
                 processed_posts.append(post)
         
-        logger.info(f"Found {len(processed_posts)} flood-relevant posts out of {len(all_posts)} total")
+        logger.info(f"🇮🇳 INDIA FLOOD MONITORING: Found {len(processed_posts)} flood-relevant items out of {len(all_posts)} total")
+        
+        # Sort by confidence and recency (handle timezone-aware dates)
+        def sort_key(x):
+            created_at = x.get('created_at', datetime.now())
+            if isinstance(created_at, datetime) and created_at.tzinfo is None:
+                created_at = timezone.make_aware(created_at)
+            elif not isinstance(created_at, datetime):
+                created_at = datetime.now()
+            return (x['confidence_score'], created_at)
+        
+        processed_posts.sort(key=sort_key, reverse=True)
+        
         return processed_posts
